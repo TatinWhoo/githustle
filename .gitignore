@@ -1,0 +1,44 @@
+# dependencies
+node_modules/
+**/node_modules//
+
+# env / secrets
+.env
+.env.local
+.env*.local
+**/.env
+
+# Build Output
+dist/
+build/
+**/dist/
+**/build/
+
+# Logs
+*.logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db 
+
+# Editor
+.vscode/
+.kiro/
+.idea/
+*.swp
+*.swo
+
+# Uploads (for server file uploads)
+uploads/
+*/uploads/
+
+# Testings
+coverage/
+.nyc_output/
+
+# Docs
+Docs/
+Design-Idea/
