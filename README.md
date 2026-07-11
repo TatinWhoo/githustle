@@ -6,7 +6,7 @@ A freelance operations platform built for technical talent — developers, desig
 
 ---
 
-### 🔁 The core loop
+### 🔁 The Core Loop
 
 ```
 Client posts job  →  Freelancers submit proposals  →  Client hires
@@ -21,19 +21,19 @@ Everything in that loop is logged. Every proposal, milestone status change, mess
 
 ### 🎯 Features
 
-**For clients**
+**For Clients**
 - Post fixed-price or hourly jobs with required skills and deadlines
 - Browse and search freelancer profiles by skill, rate, and rating
 - Track project progress through milestones
 - Pay per milestone — not the full amount upfront
 
-**For freelancers**
+**For Freelancers**
 - Public profile with skills, portfolio, ratings, and job history
 - Submit proposals with cover letter and proposed rate
 - Auto-generated invoices per milestone
 - Portable reputation that lives outside any single client relationship
 
-**For everyone**
+**For Everyone**
 - Real-time per-project messaging
 - Notifications for proposals, milestone updates, messages, and payments
 - Review system — ratings are earned, visible, and linked to real completed work
@@ -48,7 +48,7 @@ Everything in that loop is logged. Every proposal, milestone status change, mess
 
 ---
 
-### 🌏 Market focus
+### 🌏 Market Focus
 
 Initial target: **Philippines** — built around GCash and local bank transfers, local pricing (PHP), and the realities of technical freelancing in Southeast Asia.
 

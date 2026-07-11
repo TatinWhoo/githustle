@@ -42,3 +42,5 @@ coverage/
 # Docs
 Docs/
 Design-Idea/
+workstream-backend-auth/
+workstream-backend-profiles/
