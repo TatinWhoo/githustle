@@ -48,6 +48,60 @@ Everything in that loop is logged. Every proposal, milestone status change, mess
 
 ---
 
+### 🚀 Getting Started
+
+#### Prerequisites
+
+- Node.js 20+
+- PostgreSQL 15+ (local) or a Supabase project
+- npm
+
+#### 1. Clone and install dependencies
+
+```bash
+git clone https://github.com/your-org/githustle.git
+cd githustle
+
+# Install server dependencies
+cd server && npm install
+
+# Install client dependencies
+cd ../client && npm install
+```
+#### 2. Start the development servers
+
+Open two terminals:
+
+```bash
+# Terminal 1 — backend (local DB)
+cd server
+npm run dev:local
+
+# Or Supabase
+cd server 
+npm run dev:supabase
+
+# Terminal 2 — frontend
+cd client
+npm run dev
+```
+
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:4000 |
+
+#### Available server scripts
+
+| Script | Description |
+|---|---|
+| `npm run dev` | Start server using default `.env` |
+| `npm run dev:local` | Start server using `.env.local` (local PostgreSQL) |
+| `npm run dev:supabase` | Start server using `.env.supabase` (Supabase) |
+| `npm start` | Production start |
+
+---
+
 ### 🌏 Market Focus
 
 Initial target: **Philippines** — built around GCash and local bank transfers, local pricing (PHP), and the realities of technical freelancing in Southeast Asia.

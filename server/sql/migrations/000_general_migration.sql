@@ -1621,51 +1621,6 @@ SELECT user_id,
 FROM credit_ledger GROUP BY user_id;
 
 -- ================================================================
--- SEED DATA: Subscription Plans
--- ================================================================
-
-INSERT INTO subscription_plans (name, display_name, description, price_monthly, currency,
-  ai_proposals_unlimited, profile_analytics, verified_badge,
-  multi_user_team, advanced_contracts, priority_support, max_active_jobs, max_team_members)
-VALUES
-  ('free', 'Free', 'Core job matching and milestone tracking.', 0, 'PHP', FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, 5, 1),
-  ('pro_freelancer', 'GitHustle Pro', 'For serious freelancers who want every edge.', 299, 'PHP', TRUE, TRUE, TRUE, FALSE, FALSE, TRUE, NULL, 1),
-  ('business_client', 'GitHustle Business', 'For teams and agencies managing multiple contractors.', 799, 'PHP', FALSE, TRUE, FALSE, TRUE, TRUE, TRUE, NULL, NULL);
-
--- ================================================================
--- SEED DATA: Fee Schedules
--- ================================================================
-
-INSERT INTO fee_schedules (name, description, is_active, freelancer_rate_pct, client_processing_pct, min_fee_amount, valid_from)
-VALUES ('Beta Launch — Zero Fee', 'Zero-fee beta period. Deactivate when ready for standard fees.', TRUE, 0, 0, 0, NOW());
-
-INSERT INTO fee_schedules (name, description, is_active, freelancer_rate_pct, client_processing_pct, min_fee_amount, valid_from)
-VALUES ('Standard — 5% / 2%', 'Post-beta standard rates. Activate after beta ends.', FALSE, 5.00, 2.00, 10, NOW());
-
--- ================================================================
--- SEED DATA: Skills
--- ================================================================
-
-INSERT INTO skills (name, category) VALUES
-  ('JavaScript','Development'),('TypeScript','Development'),('React','Development'),
-  ('Vue.js','Development'),('Angular','Development'),('Node.js','Development'),
-  ('Python','Development'),('Django','Development'),('FastAPI','Development'),
-  ('PostgreSQL','Development'),('MongoDB','Development'),('Redis','Development'),
-  ('Docker','Development'),('Kubernetes','Development'),('REST API Design','Development'),
-  ('GraphQL','Development'),('PHP','Development'),('Laravel','Development'),
-  ('WordPress','Development'),('React Native','Development'),('Flutter','Development'),
-  ('Swift','Development'),('Kotlin','Development'),
-  ('UI/UX Design','Design'),('Figma','Design'),('Adobe XD','Design'),
-  ('Graphic Design','Design'),('Logo Design','Design'),('Motion Design','Design'),
-  ('Brand Identity','Design'),('Illustration','Design'),
-  ('Content Writing','Writing'),('Copywriting','Writing'),('Technical Writing','Writing'),
-  ('Blog Writing','Writing'),('Proofreading','Writing'),('Translation','Writing'),
-  ('SEO','Marketing'),('Social Media','Marketing'),('Email Marketing','Marketing'),
-  ('Google Ads','Marketing'),('Facebook Ads','Marketing'),('Content Strategy','Marketing'),
-  ('Video Editing','Media'),('Photography','Media'),('Podcast Editing','Media'),
-  ('Animation','Media'),('3D Modeling','Media');
-
--- ================================================================
 -- ADMIN ROLE: githustle_admin (BYPASSRLS)
 -- ================================================================
 -- Service role for admin backend routes.
@@ -1713,5 +1668,6 @@ CREATE INDEX idx_pge_payment_id  ON payment_gateway_events(payment_id) WHERE pay
 
 -- ================================================================
 -- END: 000_general_migration.sql
--- 59 tables · 29 enums · 10 explicit triggers + apply_updated_at triggers · 10 views · 1 function · 1 admin role · seed data
+-- 59 tables · 29 enums · 10 explicit triggers + apply_updated_at triggers · 10 views · 1 function · 1 admin role
+-- Run seeds separately: server/sql/seeds/000_seed.sql
 -- ================================================================
