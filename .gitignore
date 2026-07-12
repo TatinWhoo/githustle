@@ -7,6 +7,7 @@ node_modules/
 .env.local
 .env*.local
 **/.env
+.env.supabase
 
 # Build Output
 dist/
@@ -42,5 +43,3 @@ coverage/
 # Docs
 Docs/
 Design-Idea/
-workstream-backend-auth/
-workstream-backend-profiles/
