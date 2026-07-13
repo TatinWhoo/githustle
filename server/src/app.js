@@ -9,6 +9,9 @@ const { generalLimiter } = require('./middleware/rateLimiter');
 const { notFoundHandler, globalErrorHandler } = require('./middleware/errorHandler');
 const authRoutes = require('./modules/auth/auth.routes');
 const profilesRoutes = require('./modules/profiles/profiles.routes');
+const jobsRoutes = require('./modules/jobs/jobs.routes');
+const projectsRoutes = require('./modules/projects/projects.routes');
+const messagesRoutes = require('./modules/messages/messages.routes');
 
 const app = express();
 
@@ -41,6 +44,9 @@ app.get('/health', (req, res) => res.json({ ok: true, service: 'githustle-api' }
 // API routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/profiles', profilesRoutes);
+app.use('/api/v1/jobs', jobsRoutes);
+app.use('/api/v1/projects', projectsRoutes);
+app.use('/api/v1/projects', messagesRoutes);
 
 // 404 + global error handler (always last)
 app.use(notFoundHandler);
