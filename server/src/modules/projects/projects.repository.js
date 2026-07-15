@@ -245,7 +245,7 @@ async function deleteMilestone(milestoneId) {
 // Purpose: List all milestones for a project, ordered by order_index then created_at.
 async function listMilestones(projectId) {
     const { rows } = await query(
-        `SELECT id, title, description, amount, due_date, order_index,
+        `SELECT id, project_id, title, description, amount, due_date, order_index,
             status, started_at, submitted_at, approved_at, paid_at,
             rejection_reason, created_at, updated_at
      FROM milestones

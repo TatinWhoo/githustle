@@ -11,6 +11,9 @@ const env = require('./config/env');
 const app = require('./app');
 const { pool, closePool } = require('./config/database');
 const { initSocket } = require('./socket');
+const { scheduleOverdueCheck } = require('./modules/queues/overdueReminder.queue');
+const { startOverdueWorker } = require('./modules/queues/overdueReminder.worker');
+const { startEmailWorker } = require('./modules/queues/email.worker');
 
 // Create the Node HTTP server from the Express app.
 // Socket.io will attach to this same server so HTTP and WebSocket
@@ -21,6 +24,18 @@ const server = http.createServer(app);
     try {
         // Attach Socket.io (also connects Redis adapter if REDIS_URL is set)
         await initSocket(server);
+
+        // Start BullMQ overdue reminder queue + worker.
+        // Wrapped in try/catch so a missing/unreachable Redis doesn't crash startup.
+        // The queue schedules a repeating cron every 6 hours.
+        // The worker processes those jobs by marking overdue invoices.
+        try {
+            await scheduleOverdueCheck();
+            startOverdueWorker();
+            startEmailWorker();
+        } catch (err) {
+            console.warn('⚠️  BullMQ could not start (Redis unavailable?):', err.message);
+        }
 
         server.listen(env.PORT, () => {
             console.log(`🚀 GitHustle API running on port ${env.PORT} [${env.NODE_ENV}]`);

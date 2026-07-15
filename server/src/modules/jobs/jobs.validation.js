@@ -27,27 +27,30 @@ const proposalIdParamSchema = z.object({
 //     that might come in as strings (e.g., from form data).
 // ─────────────────────────────────────────────────────────────────────────────
 
-const createJobSchema = z.object({
-    title: z.string().trim().min(5).max(255),
-    description: z.string().trim().min(20).max(10000),
-    budgetType: z.enum(['fixed', 'hourly']),
+// Base shape without refinement — used for .partial() in updateJobSchema
+const createJobBaseSchema = z.object({
+    title:           z.string().trim().min(5).max(255),
+    description:     z.string().trim().min(20).max(10000),
+    budgetType:      z.enum(['fixed', 'hourly']),
 
-    // fixed budget fileds - only required when budgetType = 'fixed'
-    budgetMin: z.coerce.number().min(0).optional(),
-    budgetMax: z.coerce.number().min(0).optional(),
+    // fixed budget fields - only required when budgetType = 'fixed'
+    budgetMin:       z.coerce.number().min(0).optional(),
+    budgetMax:       z.coerce.number().min(0).optional(),
 
     // hourly budget fields - only required when budgetType = 'hourly'
-    hourlyRateMin: z.coerce.number().min(0).optional(),
-    hourlyRateMax: z.coerce.number().min(0).optional(),
+    hourlyRateMin:   z.coerce.number().min(0).optional(),
+    hourlyRateMax:   z.coerce.number().min(0).optional(),
 
     experienceLevel: z.enum(['entry', 'intermediate', 'expert']).optional(),
-    estimatedWeeks: z.coerce.number().int().min(1).max(260).optional(),
+    estimatedWeeks:  z.coerce.number().int().min(1).max(260).optional(),
 
     // ISO 8601 with timezone offset - stored as TIMESTAMPZ in Postgres
-    deadlineAt: z.string().datetime({ offset: true }).optional(),
-}).refine((d) => {
+    deadlineAt:      z.string().datetime({ offset: true }).optional(),
+});
+
+const createJobSchema = createJobBaseSchema.refine((d) => {
     // Cross-field validation: budget fields must match the declared budgetType.
-    // This mirrors the DB CHECK constraint in job_postings but cathces it earlier.
+    // This mirrors the DB CHECK constraint in job_postings but catches it earlier.
     if (d.budgetType === 'fixed') return d.budgetMin !== undefined && d.budgetMax !== undefined;
     if (d.budgetType === 'hourly') return d.hourlyRateMin !== undefined && d.hourlyRateMax !== undefined;
     return true;
@@ -63,9 +66,12 @@ const createJobSchema = z.object({
 //   budgetType is structural — changing fixed→hourly would orphan existing
 //   budget columns and break the DB CHECK constraint. Treat it as immutable
 //   after creation. If needed, the client must delete and recreate.
+//
+// Note: .partial() is called on the base shape (no .refine()) because
+//   Zod v4 disallows .partial() on a schema that already has refinements.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const updateJobSchema = createJobSchema.partial().omit({ budgetType: true });
+const updateJobSchema = createJobBaseSchema.partial().omit({ budgetType: true });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // JOB SKILLS SCHEMA

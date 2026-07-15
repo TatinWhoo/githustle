@@ -12,6 +12,8 @@ const profilesRoutes = require('./modules/profiles/profiles.routes');
 const jobsRoutes = require('./modules/jobs/jobs.routes');
 const projectsRoutes = require('./modules/projects/projects.routes');
 const messagesRoutes = require('./modules/messages/messages.routes');
+const { invoiceRouter, timeEntryRouter } = require('./modules/invoices/invoices.routes');
+const notificationsRoutes = require('./modules/notifications/notifications.routes');
 
 const app = express();
 
@@ -47,6 +49,9 @@ app.use('/api/v1/profiles', profilesRoutes);
 app.use('/api/v1/jobs', jobsRoutes);
 app.use('/api/v1/projects', projectsRoutes);
 app.use('/api/v1/projects', messagesRoutes);
+app.use('/api/v1/invoices', invoiceRouter);
+app.use('/api/v1/time-entries', timeEntryRouter);
+app.use('/api/v1/notifications', notificationsRoutes);
 
 // 404 + global error handler (always last)
 app.use(notFoundHandler);

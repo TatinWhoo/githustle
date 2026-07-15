@@ -27,7 +27,8 @@ const envSchema = z.object({
 
   // Email — using RESEND_API_KEY model (your .env uses Resend, not SMTP)
   RESEND_API_KEY: z.string().optional().default(''),
-  EMAIL_FROM: z.string().optional().default('GitHustle <no-reply@githustle.com>'),
+  RESEND_FROM:    z.string().optional().default('GitHustle <no-reply@githustle.com>'),
+  EMAIL_FROM:     z.string().optional().default('GitHustle <no-reply@githustle.com>'),
 
   // reCAPTCHA (optional for now)
   RECAPTCHA_SECRET_KEY: z.string().optional().default(''),
