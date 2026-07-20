@@ -9,11 +9,11 @@ const repo = require('./notifications.repository');
 function toNotificationDTO(n) {
     return {
         id: n.id,
-        recipientId: n.recipient_id,
+        recipientId: n.user_id,
         type: n.type,
         title: n.title,
         body: n.body,
-        link: n.link,
+        link: n.action_url,
         isRead: n.is_read,
         readAt: n.read_at,
         createdAt: n.created_at,
@@ -74,7 +74,7 @@ async function getUnreadCount(userId) {
 async function markRead(userId, notificationId) {
     const notif = await repo.findNotificationById(notificationId);
     if (!notif) throw new AppError('Notification not found.', 404);
-    if (notif.recipient_id !== userId) throw new AppError('Forbidden.', 403);
+    if (notif.user_id !== userId) throw new AppError('Forbidden.', 403);
 
     const updated = await repo.markNotificationRead(notificationId);
     // If already read, updated is null — return the existing record

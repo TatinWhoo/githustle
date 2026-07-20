@@ -1,0 +1,66 @@
+# docker-compose.yml — local development stack
+# Usage: docker compose up -d
+# PostgreSQL + Redis managed by Docker; API connects to them.
+
+services:
+  # ── PostgreSQL ────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: githustle_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./server/sql/migrations:/docker-entrypoint-initdb.d  # auto-run migrations
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ─────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── API ───────────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ./server
+      target: production
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    env_file:
+      - ./server/.env
+    environment:
+      # Override connection strings to use Docker service names
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/githustle_dev
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: development
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      # Mount uploads so files persist across container restarts in dev
+      - ./server/uploads:/app/uploads
+
+volumes:
+  postgres_data:
+  redis_data:

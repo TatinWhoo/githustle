@@ -1,6 +1,10 @@
 // src/server.js
 // Purpose: Create the HTTP server from the Express app, attach Socket.io,
 // then start listening.
+
+// MUST be first — Sentry instruments require() calls
+const { initSentry } = require('./utils/sentry');
+initSentry();
 //
 // Why split app.js and server.js?
 //   Socket.io needs the raw http.Server instance, not the Express app.

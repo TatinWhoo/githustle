@@ -1,6 +1,7 @@
 // src/middleware/errorHandler.js
 const AppError = require('../utils/AppError');
 const env = require('../config/env');
+const { captureError } = require('../utils/sentry');
 
 function notFoundHandler(req, res, next) {
   next(new AppError(`Route not found: ${req.method} ${req.originalUrl}`, 404));
@@ -35,6 +36,7 @@ function globalErrorHandler(err, req, res, next) {
   }
 
   // Unknown bugs — log server-side, hide from client
+  captureError(err, { method: req.method, url: req.originalUrl });
   console.error('UNEXPECTED ERROR 💥', err);
 
   return res.status(500).json({

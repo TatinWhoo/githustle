@@ -27,8 +27,15 @@ const envSchema = z.object({
 
   // Email — using RESEND_API_KEY model (your .env uses Resend, not SMTP)
   RESEND_API_KEY: z.string().optional().default(''),
-  RESEND_FROM:    z.string().optional().default('GitHustle <no-reply@githustle.com>'),
-  EMAIL_FROM:     z.string().optional().default('GitHustle <no-reply@githustle.com>'),
+  RESEND_FROM: z.string().optional().default('GitHustle <no-reply@githustle.com>'),
+  EMAIL_FROM: z.string().optional().default('GitHustle <no-reply@githustle.com>'),
+
+  // Claude AI (optional — server boots without it; AI routes will fail at request time)
+  ANTHROPIC_API_KEY: z.string().optional().default(''),
+  AI_MONTHLY_QUOTA: z.preprocess(
+    (val) => (val === '' || val === undefined ? undefined : val),
+    z.coerce.number().int().min(1).default(5)
+  ),
 
   // reCAPTCHA (optional for now)
   RECAPTCHA_SECRET_KEY: z.string().optional().default(''),
@@ -38,6 +45,15 @@ const envSchema = z.object({
   MAX_FILE_SIZE: z.coerce.number().positive().default(5242880),
   PORTFOLIO_IMAGE_MAX_SIZE_MB: z.coerce.number().positive().default(8),
   PUBLIC_API_URL: z.string().url().default('http://localhost:4000'),
+
+  // Admin (optional — falls back to main pool)
+  ADMIN_DATABASE_URL: z.string().optional().default(''),
+
+  // Sentry (optional — error tracking)
+  SENTRY_DSN: z.string().url().optional().default(''),
+
+  // Logging
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 });
 
 const parsed = envSchema.safeParse(process.env);

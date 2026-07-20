@@ -36,7 +36,7 @@ function startOverdueWorker() {
                     // Create in-app notification for the freelancer
                     await notifService.notify(
                         invoice.freelancer_id,
-                        'invoice_due',
+                        'invoice',
                         `Invoice ${invoice.invoice_number} is overdue`,
                         `Your invoice for project "${invoice.project_title}" is past due. Follow up with your client.`,
                         `/invoices/${invoice.id}`

@@ -29,4 +29,10 @@ const registerLimiter = createRateLimiter({
   message: 'Too many accounts created from this IP. Please try again later.',
 });
 
-module.exports = { generalLimiter, loginLimiter, registerLimiter };
+const aiLimiter = createRateLimiter({
+  windowMs: 60 * 1000,  // 1 minute
+  max: 10,
+  message: 'Too many AI requests. Please wait a moment.',
+});
+
+module.exports = { generalLimiter, loginLimiter, registerLimiter, aiLimiter };

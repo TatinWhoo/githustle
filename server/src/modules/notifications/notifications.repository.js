@@ -11,7 +11,7 @@ const { query } = require('../../config/database');
 async function createNotification(data) {
     const { rows } = await query(
         `INSERT INTO notifications
-           (recipient_id, type, title, body, link)
+           (user_id, type, title, body, action_url)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING *`,
         [
@@ -44,7 +44,7 @@ async function markAllNotificationsRead(recipientId) {
     const { rows } = await query(
         `UPDATE notifications
          SET is_read = TRUE, read_at = NOW()
-         WHERE recipient_id = $1 AND is_read = FALSE
+         WHERE user_id = $1 AND is_read = FALSE
          RETURNING id`,
         [recipientId]
     );
@@ -65,7 +65,7 @@ async function findNotificationById(notificationId) {
 
 // Purpose: Cursor-paginated notifications, newest first.
 async function listNotifications(recipientId, filters) {
-    const conditions = [`recipient_id = $1`];
+    const conditions = [`user_id = $1`];
     const values = [recipientId];
     let i = 2;
 
@@ -96,7 +96,7 @@ async function listNotifications(recipientId, filters) {
 async function countUnread(recipientId) {
     const { rows } = await query(
         `SELECT COUNT(*) AS count FROM notifications
-         WHERE recipient_id = $1 AND is_read = FALSE`,
+         WHERE user_id = $1 AND is_read = FALSE`,
         [recipientId]
     );
     return Number(rows[0].count);

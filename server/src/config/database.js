@@ -4,7 +4,7 @@ const env = require('./env');
 const pool = new Pool({
     connectionString: env.DATABASE_URL,
     max: process.env.NODE_ENV === 'production' ? 10 : 5,
-    idleTimeourMillis: 30000,
+    idleTimeoutMillis: 30000,
     connectionTimeoutMillis: process.env.DB_CONNECT_TIMEOUT ? parseInt(process.env.DB_CONNECT_TIMEOUT) : 5000,
 });
 
