@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import MockAdapter from 'axios-mock-adapter';
 import { apiClient, __resetRefreshState } from './client';
 
