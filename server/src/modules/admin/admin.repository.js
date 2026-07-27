@@ -1,5 +1,5 @@
 // src/modules/admin/admin.repository.js
-const { query } = require('../config/database');
+const { query } = require('../../config/database');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // USERS
@@ -83,8 +83,9 @@ async function updateUserRole(userId, role) {
 async function getRevenueByMonth(months = 12) {
     const { rows } = await query(
         `SELECT * FROM v_platform_revenue
-         WHERE month >= DATE_TRUNC('month', NOW()) - INTERVAL '${months} months'
-         ORDER BY month DESC, fee_type`
+         WHERE month >= DATE_TRUNC('month', NOW()) - ($1 || ' months')::INTERVAL
+         ORDER BY month DESC, fee_type`,
+        [months]
     );
     return rows;
 }
@@ -95,9 +96,10 @@ async function getUserGrowth(months = 12) {
         `SELECT DATE_TRUNC('month', created_at) AS month,
                 role, COUNT(*) AS count
          FROM users
-         WHERE created_at >= NOW() - INTERVAL '${months} months'
+         WHERE created_at >= NOW() - ($1 || ' months')::INTERVAL
          GROUP BY month, role
-         ORDER BY month DESC`
+         ORDER BY month DESC`,
+        [months]
     );
     return rows;
 }

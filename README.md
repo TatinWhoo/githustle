@@ -108,6 +108,12 @@ Initial target: **Philippines** — built around GCash and local bank transfers,
 
 ---
 
+## Security
+
+See [server/SECURITY.md](server/SECURITY.md) for the threat model, secret rotation procedures, incident response, and vulnerability reporting.
+
+---
+
 ### 📄 License
 
 Private — all rights reserved.

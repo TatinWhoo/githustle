@@ -1,7 +1,7 @@
 // src/middleware/authenticate.js
 const asyncHandler = require('./asyncHandler');
 const AppError = require('../utils/AppError');
-const { verifyAccessToken } = require('../utils/jwt');
+const authProvider = require('../modules/auth/auth-provider');
 
 // Protects routes by requiring a valid access token in the Authorization
 // header: "Authorization: Bearer <token>"
@@ -13,9 +13,9 @@ const authenticate = asyncHandler(async (req, res, next) => {
   }
 
   const token = header.split(' ')[1];
-  const payload = verifyAccessToken(token);
+  const result = await authProvider.active.verifyAccessToken(token);
 
-  req.user = { id: payload.sub, role: payload.role };
+  req.user = { id: result.userId, role: result.role };
   next();
 });
 

@@ -1,4 +1,4 @@
-const asyncHandler = require('../middleware/asyncHandler');
+const asyncHandler = require('../../middleware/asyncHandler');
 const service = require('./disputes.service');
 
 const listDisputes = asyncHandler(async (req, res) => {

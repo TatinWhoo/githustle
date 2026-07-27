@@ -30,9 +30,20 @@ const resendVerificationSchema = z.object({
   email: z.string().email('Invalid email address').toLowerCase(),
 });
 
+const requestPasswordResetSchema = z.object({
+  email: z.string().email('Invalid email address').toLowerCase(),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1, 'Token is required'),
+  password: z.string().min(12, 'Password must be at least 12 characters'),
+});
+
 module.exports = {
   registerSchema,
   loginSchema,
   verifyEmailSchema,
   resendVerificationSchema,
+  requestPasswordResetSchema,
+  resetPasswordSchema,
 };

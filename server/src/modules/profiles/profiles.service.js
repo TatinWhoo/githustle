@@ -1,7 +1,7 @@
 // src/modules/profiles/profiles.service.js
 const env = require('../../config/env');
 const AppError = require('../../utils/AppError');
-const { isValidImageBuffer, saveBuffer, deleteFile } = require('../../utils/fileStorage');
+const { deleteFile } = require('../../utils/fileStorage');
 const repo = require('./profiles.repository');
 
 // Profile completion scoring
@@ -251,85 +251,75 @@ async function deletePortfolioItem(userId, itemId) {
   await recalculateFreelancerCompletion(profile.id);
 }
 
-async function processImageUpload({ buffer, declaredMimeType, originalName, subdir, uploaderId, entityType }) {
-  if (!isValidImageBuffer(buffer, declaredMimeType)) {
-    throw new AppError('File content does not match a valid image format.', 422);
-  }
-  const saved = await saveBuffer(buffer, subdir, declaredMimeType);
-  await repo.insertFileUpload({
-    uploaderId,
-    fileName: saved.filename,
-    originalName,
-    fileUrl: saved.url,
-    fileSizeBytes: buffer.length,
-    mimeType: declaredMimeType,
-    entityType,
-    entityId: null,
-  });
-  return saved;
-}
-
-async function uploadFreelancerAvatar(userId, file) {
+async function uploadFreelancerAvatar(userId, file, uploadedFile) {
   const existing = await repo.findFreelancerProfileByUserId(userId);
   if (!existing) throw new AppError('Create your freelancer profile before uploading an avatar.', 404);
 
-  const saved = await processImageUpload({
-    buffer: file.buffer,
-    declaredMimeType: file.mimetype,
-    originalName: file.originalname,
-    subdir: 'avatars',
+  // Disk write + magic-byte verification already done by upload middleware.
+  // Record the file upload and update avatar URL.
+  await repo.insertFileUpload({
     uploaderId: userId,
+    fileName: uploadedFile.filename,
+    originalName: null, // never store user-supplied filename (Requirement 9.5)
+    fileUrl: uploadedFile.url,
+    fileSizeBytes: file.size || file.buffer?.length || 0,
+    mimeType: file.mimetype,
     entityType: 'avatar',
+    entityId: null,
   });
 
   const oldRelativePath = existing.avatar_url
     ? existing.avatar_url.split(`/${env.UPLOAD_DIR}/`)[1]
     : null;
 
-  await repo.updateFreelancerAvatar(userId, saved.url);
+  await repo.updateFreelancerAvatar(userId, uploadedFile.url);
   if (oldRelativePath) await deleteFile(oldRelativePath);
   await recalculateFreelancerCompletion(existing.id);
 
-  return { avatarUrl: saved.url };
+  return { avatarUrl: uploadedFile.url };
 }
 
-async function uploadClientAvatar(userId, file) {
+async function uploadClientAvatar(userId, file, uploadedFile) {
   const existing = await repo.findClientProfileByUserId(userId);
   if (!existing) throw new AppError('Create your client profile before uploading an avatar.', 404);
 
-  const saved = await processImageUpload({
-    buffer: file.buffer,
-    declaredMimeType: file.mimetype,
-    originalName: file.originalname,
-    subdir: 'avatars',
+  await repo.insertFileUpload({
     uploaderId: userId,
+    fileName: uploadedFile.filename,
+    originalName: null, // never store user-supplied filename (Requirement 9.5)
+    fileUrl: uploadedFile.url,
+    fileSizeBytes: file.size || file.buffer?.length || 0,
+    mimeType: file.mimetype,
     entityType: 'avatar',
+    entityId: null,
   });
 
   const oldRelativePath = existing.avatar_url
     ? existing.avatar_url.split(`/${env.UPLOAD_DIR}/`)[1]
     : null;
 
-  await repo.updateClientAvatar(userId, saved.url);
+  await repo.updateClientAvatar(userId, uploadedFile.url);
   if (oldRelativePath) await deleteFile(oldRelativePath);
 
-  return { avatarUrl: saved.url };
+  return { avatarUrl: uploadedFile.url };
 }
 
-async function uploadPortfolioImage(userId, file) {
+async function uploadPortfolioImage(userId, file, uploadedFile) {
   const existing = await repo.findFreelancerProfileByUserId(userId);
   if (!existing) throw new AppError('Create your freelancer profile before uploading images.', 404);
 
-  const saved = await processImageUpload({
-    buffer: file.buffer,
-    declaredMimeType: file.mimetype,
-    originalName: file.originalname,
-    subdir: 'portfolio',
+  await repo.insertFileUpload({
     uploaderId: userId,
+    fileName: uploadedFile.filename,
+    originalName: null, // never store user-supplied filename (Requirement 9.5)
+    fileUrl: uploadedFile.url,
+    fileSizeBytes: file.size || file.buffer?.length || 0,
+    mimeType: file.mimetype,
     entityType: 'portfolio',
+    entityId: null,
   });
 
-  return { imageUrl: saved.url };
+  return { imageUrl: uploadedFile.url };
 }
 
 module.exports = {

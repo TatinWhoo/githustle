@@ -4,10 +4,12 @@ node_modules/
 
 # env / secrets
 .env
-.env.local
-.env*.local
+.env.*
+!.env.example
 **/.env
-.env.supabase
+**/.env.*
+!**/.env.example
+.env.docker
 
 # Build Output
 dist/

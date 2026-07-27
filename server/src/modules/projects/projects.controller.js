@@ -89,11 +89,15 @@ const updateMilestoneStatus = asyncHandler(async (req, res) => {
 // ── Deliverables ─────────────────────────────────────────────────────────────
 
 const uploadDeliverable = asyncHandler(async (req, res) => {
+    if (!req.file || !req.uploadedFile) {
+        throw new AppError('No file was uploaded.', 400);
+    }
     const deliverable = await service.uploadDeliverable(
         req.user.id,
         req.params.projectId,
         req.params.milestoneId,
-        req.file,           // set by Multer middleware
+        req.file,           // multer file — metadata (mimetype, size)
+        req.uploadedFile,   // hardened result — { filename, relativePath, url }
         req.body.note       // optional text note alongside the file
     );
     res.status(201).json({ status: 'success', data: { deliverable } });

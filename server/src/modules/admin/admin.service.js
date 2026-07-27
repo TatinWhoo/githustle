@@ -1,7 +1,7 @@
 // src/modules/admin/admin.service.js
-const AppError = require('../utils/AppError');
+const AppError = require('../../utils/AppError');
 const repo = require('./admin.repository');
-const logger = require('../config/logger');
+const logger = require('../../config/logger');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DTOs

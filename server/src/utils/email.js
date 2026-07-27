@@ -3,6 +3,7 @@
 // In dev with no API key configured, emails print to console instead.
 const nodemailer = require('nodemailer');
 const env = require('../config/env');
+const logger = require('../config/logger');
 
 const isSmtpConfigured = Boolean(env.RESEND_API_KEY);
 
@@ -21,11 +22,7 @@ const transporter = isSmtpConfigured
 
 async function sendEmail({ to, subject, html }) {
   if (!transporter) {
-    console.log('\n──────── 📧 DEV EMAIL (no RESEND_API_KEY configured) ────────');
-    console.log('To:', to);
-    console.log('Subject:', subject);
-    console.log(html.replace(/<[^>]+>/g, ''));
-    console.log('────────────────────────────────────────────────────────────\n');
+    logger.info({ to, subject }, 'DEV EMAIL (no RESEND_API_KEY configured)');
     return;
   }
 

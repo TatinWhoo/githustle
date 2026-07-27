@@ -1,6 +1,11 @@
 // src/modules/queues/email.worker.js
 // Purpose: BullMQ worker that processes email jobs using Nodemailer + Resend SMTP.
 //
+// Security hardening (task 18.1):
+//   - Zod schema validated at job start; invalid jobs permanently failed via UnrecoverableError (Req 15.3)
+//   - Structured logs include jobId, queue, requestId for correlation (Req 15.4)
+//   - RESEND_API_KEY read from Config_Loader at execution time — never stored in job payload (Req 15.6)
+//
 // How Resend SMTP works with Nodemailer:
 //   - Host:  smtp.resend.com
 //   - Port:  465 (SSL) — Resend recommends port 465
@@ -8,60 +13,87 @@
 //   - Pass:  your RESEND_API_KEY (re_xxxx...)
 //
 // The transporter is created ONCE at worker startup and reused for all jobs.
-// This avoids the overhead of re-authenticating the SMTP connection per email.
-//
 // Concurrency = 5: Resend free tier rate limit is 100 emails/day.
-// In practice this means 5 concurrent sends is more than enough.
-const { Worker } = require('bullmq');
+'use strict';
+
+const { Worker, UnrecoverableError } = require('bullmq');
 const nodemailer = require('nodemailer');
 const { connection } = require('./connection');
+const { emailJobSchema } = require('./email.queue');
 const env = require('../../config/env');
+const logger = require('../../config/logger');
 
 function startEmailWorker() {
-    // Configure Nodemailer to send through Resend's SMTP relay.
-    // Why port 465 + secure: true?
-    //   Resend's SMTP docs specify port 465 with SSL/TLS (not STARTTLS).
-    //   Port 587 with STARTTLS also works, but 465 is more reliable with Resend.
-    const transporter = nodemailer.createTransport({
-        host: 'smtp.resend.com',
-        port: 465,
-        secure: true,       // SSL — required for port 465
-        auth: {
-            user: 'resend',             // literal string — Resend requires this exact value
-            pass: env.RESEND_API_KEY,   // your API key from resend.com/api-keys
-        },
-    });
+  // RESEND_API_KEY read from Config_Loader at worker startup — never from job payload (Req 15.6)
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.resend.com',
+    port: 465,
+    secure: true,     // SSL — required for port 465
+    auth: {
+      user: 'resend', // literal string — Resend requires this exact value
+      pass: env.RESEND_API_KEY,
+    },
+  });
 
-    const worker = new Worker(
-        'emails',
-        async (job) => {
-            const { to, subject, html } = job.data;
+  const worker = new Worker(
+    'emails',
+    async (job) => {
+      // ── Req 15.3: Schema validation — permanent fail on invalid payload ───────
+      const parsed = emailJobSchema.safeParse(job.data);
+      if (!parsed.success) {
+        const errors = parsed.error.flatten().fieldErrors;
+        logger.error(
+          { jobId: job.id, queue: 'emails', requestId: job.data?.requestId, errors },
+          'Email job schema validation failed — permanent fail'
+        );
+        // UnrecoverableError: BullMQ will not retry this job
+        throw new UnrecoverableError('Job payload failed schema validation');
+      }
 
-            await transporter.sendMail({
-                from: env.RESEND_FROM,   // e.g. "GitHustle <noreply@yourdomain.com>"
-                to,
-                subject,
-                html,
-            });
+      const { to, subject, html, requestId } = parsed.data;
 
-            console.log(`[email-worker] Sent "${subject}" → ${to}`);
-        },
-        {
-            connection,
-            concurrency: 5,
-        }
+      // ── Req 15.4: Log job start with correlation fields ───────────────────────
+      logger.info({ jobId: job.id, queue: 'emails', requestId }, 'Email job started');
+
+      await transporter.sendMail({
+        from: env.RESEND_FROM,
+        to,
+        subject,
+        html,
+      });
+
+      // ── Req 15.4: Log completion ──────────────────────────────────────────────
+      logger.info({ jobId: job.id, queue: 'emails', requestId, subject }, 'Email sent');
+    },
+    {
+      connection,
+      concurrency: 5,
+    }
+  );
+
+  // ── Req 15.4: Event-level logs with correlation fields ────────────────────────
+  worker.on('completed', (job) => {
+    logger.info(
+      { jobId: job.id, queue: 'emails', requestId: job.data?.requestId },
+      'Email job completed'
     );
+  });
 
-    worker.on('completed', (job) => {
-        console.log(`[email-worker] Job ${job.id} done`);
-    });
+  worker.on('failed', (job, err) => {
+    logger.error(
+      {
+        jobId: job?.id,
+        queue: 'emails',
+        requestId: job?.data?.requestId,
+        attemptsMade: job?.attemptsMade,
+        err: err.message,
+      },
+      'Email job failed'
+    );
+  });
 
-    worker.on('failed', (job, err) => {
-        console.error(`[email-worker] Job ${job?.id} failed (attempt ${job?.attemptsMade}):`, err.message);
-    });
-
-    console.log('📧 Email worker started (Resend SMTP)');
-    return worker;
+  logger.info('Email worker started');
+  return worker;
 }
 
 module.exports = { startEmailWorker };

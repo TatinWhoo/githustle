@@ -5,6 +5,8 @@
 // MUST be first — Sentry instruments require() calls
 const { initSentry } = require('./utils/sentry');
 initSentry();
+const logger = require('./config/logger');
+const { checkModuleLayout } = require('./boot/checkModuleLayout');
 //
 // Why split app.js and server.js?
 //   Socket.io needs the raw http.Server instance, not the Express app.
@@ -18,6 +20,10 @@ const { initSocket } = require('./socket');
 const { scheduleOverdueCheck } = require('./modules/queues/overdueReminder.queue');
 const { startOverdueWorker } = require('./modules/queues/overdueReminder.worker');
 const { startEmailWorker } = require('./modules/queues/email.worker');
+const { initRateLimiters } = require('./middleware/rateLimiter');
+const authProviderRegistry = require('./modules/auth/auth-provider');
+const localJwtProvider = require('./modules/auth/providers/localJwtProvider');
+const clerkProvider = require('./modules/auth/providers/clerkProvider');
 
 // Create the Node HTTP server from the Express app.
 // Socket.io will attach to this same server so HTTP and WebSocket
@@ -26,6 +32,19 @@ const server = http.createServer(app);
 
 (async () => {
     try {
+        // Verify module layout before opening any connections
+        checkModuleLayout();
+
+        // Register and select the auth provider (must run before initSocket or
+        // any request handler that calls authProvider.active)
+        authProviderRegistry.register('local', localJwtProvider);
+        authProviderRegistry.register('clerk', clerkProvider);
+        authProviderRegistry.select(env.AUTH_PROVIDER);
+        logger.info({ provider: env.AUTH_PROVIDER }, 'Auth provider selected');
+
+        // Initialise Redis-backed rate limiters (falls back to in-memory on error)
+        await initRateLimiters();
+
         // Attach Socket.io (also connects Redis adapter if REDIS_URL is set)
         await initSocket(server);
 
@@ -38,26 +57,26 @@ const server = http.createServer(app);
             startOverdueWorker();
             startEmailWorker();
         } catch (err) {
-            console.warn('⚠️  BullMQ could not start (Redis unavailable?):', err.message);
+            logger.warn({ err: err.message }, 'BullMQ could not start (Redis unavailable?)');
         }
 
         server.listen(env.PORT, () => {
-            console.log(`🚀 GitHustle API running on port ${env.PORT} [${env.NODE_ENV}]`);
-            console.log('🔌 Socket.io ready');
+            logger.info({ port: env.PORT, env: env.NODE_ENV }, 'GitHustle API started');
+            logger.info('Socket.io ready');
         });
 
         // Verify DB connection after server starts (non-blocking)
         pool.query('SELECT 1')
-            .then(() => console.log('✅ PostgreSQL connection verified'))
+            .then(() => logger.info('PostgreSQL connection verified'))
             .catch((err) => {
-                console.error('❌ Could not connect to PostgreSQL:', err.message);
-                console.warn('⚠️  Server continuing without verified DB connection. Check DATABASE_URL.');
+                logger.error({ err: err.message }, 'Could not connect to PostgreSQL');
+                logger.warn('Server continuing without verified DB connection. Check DATABASE_URL.');
                 // Don't exit — let health check still respond.
                 // Individual requests will fail at query time if DB is unreachable.
             });
 
     } catch (err) {
-        console.error('Failed to start server:', err);
+        logger.error({ err }, 'Failed to start server');
         process.exit(1);
     }
 })();
@@ -70,10 +89,10 @@ const server = http.createServer(app);
 // ─────────────────────────────────────────────────────────────────────────────
 
 function shutdown(signal) {
-    console.log(`\n${signal} received. Shutting down gracefully...`);
+    logger.info({ signal }, 'Shutdown signal received. Shutting down gracefully...');
     server.close(async () => {
         await closePool();
-        console.log('Closed out remaining connections.');
+        logger.info('Closed out remaining connections.');
         process.exit(0);
     });
 

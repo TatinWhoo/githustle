@@ -74,24 +74,26 @@ const deletePortfolioItem = asyncHandler(async (req, res) => {
 });
 
 function requireFile(req) {
-  if (!req.file) throw new AppError('No file was uploaded. Attach an image under the "image" field.', 400);
+  if (!req.file || !req.uploadedFile) {
+    throw new AppError('No file was uploaded. Attach an image under the "image" field.', 400);
+  }
 }
 
 const uploadFreelancerAvatar = asyncHandler(async (req, res) => {
   requireFile(req);
-  const result = await service.uploadFreelancerAvatar(req.user.id, req.file);
+  const result = await service.uploadFreelancerAvatar(req.user.id, req.file, req.uploadedFile);
   res.status(200).json({ status: 'success', data: result });
 });
 
 const uploadClientAvatar = asyncHandler(async (req, res) => {
   requireFile(req);
-  const result = await service.uploadClientAvatar(req.user.id, req.file);
+  const result = await service.uploadClientAvatar(req.user.id, req.file, req.uploadedFile);
   res.status(200).json({ status: 'success', data: result });
 });
 
 const uploadPortfolioImage = asyncHandler(async (req, res) => {
   requireFile(req);
-  const result = await service.uploadPortfolioImage(req.user.id, req.file);
+  const result = await service.uploadPortfolioImage(req.user.id, req.file, req.uploadedFile);
   res.status(200).json({ status: 'success', data: result });
 });
 

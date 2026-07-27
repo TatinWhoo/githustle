@@ -1,12 +1,14 @@
 // src/app.js
-const path = require('path');
 const express = require('express');
-const helmet = require('helmet');
-const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const env = require('./config/env');
-const { generalLimiter } = require('./middleware/rateLimiter');
+const correlationId = require('./middleware/correlationId');
+const securityHeaders = require('./middleware/securityHeaders');
+const corsAllowlist = require('./middleware/corsAllowlist');
+const staticUploads = require('./middleware/staticUploads');
+const { generalLimiter, perRequestLimiter, initRateLimiters } = require('./middleware/rateLimiter');
 const { notFoundHandler, globalErrorHandler } = require('./middleware/errorHandler');
+const { mountAll } = require('./utils/appMount');
 const authRoutes = require('./modules/auth/auth.routes');
 const profilesRoutes = require('./modules/profiles/profiles.routes');
 const jobsRoutes = require('./modules/jobs/jobs.routes');
@@ -15,49 +17,44 @@ const messagesRoutes = require('./modules/messages/messages.routes');
 const { invoiceRouter, timeEntryRouter } = require('./modules/invoices/invoices.routes');
 const notificationsRoutes = require('./modules/notifications/notifications.routes');
 const aiRoutes = require('./modules/ai/ai.routes');
-const adminRoutes = require('./modules/admin.routes');
-const disputesRoutes = require('./disputes/disputes.routes');
+const adminRoutes = require('./modules/admin/admin.routes');
+const disputesRoutes = require('./modules/disputes/disputes.routes');
 
 const app = express();
 
-app.set('trust proxy', 1);
+app.set('trust proxy', env.TRUSTED_PROXY_DEPTH);
 
-app.use(
-  helmet({
-    // Allow cross-origin image loading (avatars, portfolio images)
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
-  })
-);
-
-app.use(
-  cors({
-    origin: env.CLIENT_URL,
-    credentials: true,
-  })
-);
-
-app.use(express.json({ limit: '10kb' }));
+app.use(correlationId);
+app.use(securityHeaders);
+app.use(corsAllowlist);
+app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
+// TODO task 7.1: wire protoPollutionGuard here
 app.use(generalLimiter);
+app.use(perRequestLimiter);
 
 // Serve uploaded files (avatars, portfolio images)
-app.use(`/${env.UPLOAD_DIR}`, express.static(path.join(process.cwd(), env.UPLOAD_DIR)));
+app.use('/uploads', staticUploads);
 
-// Health check
+// Health check — not an API route, kept outside mountAll
 app.get('/health', (req, res) => res.json({ ok: true, service: 'githustle-api' }));
 
 // API routes
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/profiles', profilesRoutes);
-app.use('/api/v1/jobs', jobsRoutes);
-app.use('/api/v1/projects', projectsRoutes);
-app.use('/api/v1/projects', messagesRoutes);
-app.use('/api/v1/invoices', invoiceRouter);
-app.use('/api/v1/time-entries', timeEntryRouter);
-app.use('/api/v1/notifications', notificationsRoutes);
-app.use('/api/v1/ai', aiRoutes);
-app.use('/api/v1/admin', adminRoutes);
-app.use('/api/v1/admin/disputes', disputesRoutes);
+// messagesRoutes duplicates '/api/v1/projects' — mountAll will log a warning and
+// mount it at '/api/v1/projects-messages' (its routes are /:projectId/messages/*)
+mountAll(app, [
+  { path: '/api/v1/auth',           router: authRoutes,          moduleName: 'auth' },
+  { path: '/api/v1/profiles',       router: profilesRoutes,      moduleName: 'profiles' },
+  { path: '/api/v1/jobs',           router: jobsRoutes,          moduleName: 'jobs' },
+  { path: '/api/v1/projects',       router: projectsRoutes,      moduleName: 'projects' },
+  { path: '/api/v1/projects',       router: messagesRoutes,      moduleName: 'messages' },
+  { path: '/api/v1/invoices',       router: invoiceRouter,       moduleName: 'invoices' },
+  { path: '/api/v1/time-entries',   router: timeEntryRouter,     moduleName: 'time-entries' },
+  { path: '/api/v1/notifications',  router: notificationsRoutes, moduleName: 'notifications' },
+  { path: '/api/v1/ai',             router: aiRoutes,            moduleName: 'ai' },
+  { path: '/api/v1/admin',          router: adminRoutes,         moduleName: 'admin' },
+  { path: '/api/v1/disputes',       router: disputesRoutes,      moduleName: 'disputes' },
+]);
 
 // 404 + global error handler (always last)
 app.use(notFoundHandler);

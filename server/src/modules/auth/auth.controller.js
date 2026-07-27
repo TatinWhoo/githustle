@@ -89,4 +89,27 @@ const me = asyncHandler(async (req, res) => {
   res.status(200).json({ status: 'success', data: { user } });
 });
 
-module.exports = { register, verifyEmail, resendVerification, login, refresh, logout, me };
+const requestPasswordReset = asyncHandler(async (req, res) => {
+  await service.requestPasswordReset({ email: req.body.email });
+  res.status(200).json({
+    status: 'success',
+    message: 'If that email exists, a password reset link has been sent.',
+  });
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+  await service.resetPassword({ rawToken: req.body.token, newPassword: req.body.password });
+  res.status(200).json({ status: 'success', message: 'Password has been reset. Please log in.' });
+});
+
+module.exports = {
+  register,
+  verifyEmail,
+  resendVerification,
+  login,
+  refresh,
+  logout,
+  me,
+  requestPasswordReset,
+  resetPassword,
+};

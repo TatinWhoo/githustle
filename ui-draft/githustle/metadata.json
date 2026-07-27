@@ -1,0 +1,6 @@
+{
+  "name": "GitHustle",
+  "description": "Premium freelance operations feed and workspace for technical talent, featuring interactive milestones, live collaboration boards, real-time messaging, and trust-first dispute admin panels.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

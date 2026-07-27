@@ -118,22 +118,32 @@ CREATE INDEX idx_users_deleted_at ON users(deleted_at) WHERE deleted_at IS NOT N
 -- ================================================================
 
 CREATE TABLE refresh_tokens (
-  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  token_hash  TEXT        NOT NULL,
-  family      UUID        NOT NULL,
-  is_revoked  BOOLEAN     NOT NULL DEFAULT FALSE,
-  expires_at  TIMESTAMPTZ NOT NULL,
-  ip_address  INET,
-  user_agent  TEXT,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash      TEXT        NOT NULL UNIQUE,
+  -- token_family_id supersedes legacy `family` column (kept for compatibility)
+  family          UUID        NOT NULL,
+  token_family_id UUID        NOT NULL,
+  parent_id       UUID        REFERENCES refresh_tokens(id),
+  -- state supersedes legacy `is_revoked` column (kept for compatibility)
+  is_revoked      BOOLEAN     NOT NULL DEFAULT FALSE,
+  state           TEXT        NOT NULL DEFAULT 'active'
+                  CHECK (state IN ('active', 'rotated', 'revoked')),
+  issued_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at      TIMESTAMPTZ NOT NULL,
+  revoked_at      TIMESTAMPTZ,
+  ip_address      INET,
+  user_agent      TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_rt_user_id    ON refresh_tokens(user_id);
-CREATE INDEX idx_rt_family     ON refresh_tokens(family);
-CREATE INDEX idx_rt_expires    ON refresh_tokens(expires_at);
-CREATE INDEX idx_rt_active     ON refresh_tokens(is_revoked) WHERE is_revoked = FALSE;
-CREATE INDEX idx_rt_token_hash ON refresh_tokens(token_hash);
+CREATE INDEX idx_rt_user_id        ON refresh_tokens(user_id);
+CREATE INDEX idx_rt_family         ON refresh_tokens(family);
+CREATE INDEX idx_rt_token_family_id ON refresh_tokens(token_family_id);
+CREATE INDEX idx_rt_expires        ON refresh_tokens(expires_at);
+-- Active-token lookup by user (replaces the old is_revoked partial index)
+CREATE INDEX idx_rt_user_active    ON refresh_tokens(user_id) WHERE state = 'active';
+CREATE INDEX idx_rt_token_hash     ON refresh_tokens(token_hash);
 
 -- ================================================================
 -- TABLE: mfa_recovery_codes
@@ -704,6 +714,12 @@ CREATE TABLE audit_logs (
   new_value   JSONB,
   ip_address  INET,
   user_agent  TEXT,
+  -- Enrichment columns added in 014_refresh_token_family.sql
+  request_id  TEXT,
+  event_type  VARCHAR(100),
+  outcome     TEXT         CHECK (outcome IN ('success', 'failure')),
+  occurred_at TIMESTAMPTZ,
+  metadata    JSONB,
   created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
@@ -711,6 +727,7 @@ CREATE INDEX idx_al_user_id    ON audit_logs(user_id);
 CREATE INDEX idx_al_entity     ON audit_logs(entity_type, entity_id);
 CREATE INDEX idx_al_action     ON audit_logs(action);
 CREATE INDEX idx_al_created_at ON audit_logs(created_at DESC);
+CREATE INDEX idx_al_request_id ON audit_logs(request_id) WHERE request_id IS NOT NULL;
 
 -- ================================================================
 -- TABLE: file_uploads
@@ -1642,6 +1659,99 @@ COMMENT ON ROLE githustle_admin IS
    Connect via a separate pool — never expose to user-facing routes.';
 
 -- ================================================================
+-- APP ROLE: githustle_app (least-privilege runtime role)
+-- ================================================================
+-- Runtime role for all user-facing application queries.
+-- SELECT/INSERT/UPDATE/DELETE only — no DDL, no TRUNCATE, no superuser.
+-- Production DATABASE_URL must connect as this role.
+-- Incorporated from 015_least_privilege_role.sql.
+-- ================================================================
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'githustle_app') THEN
+    CREATE ROLE githustle_app WITH LOGIN;
+  END IF;
+END
+$$;
+
+ALTER ROLE githustle_app NOCREATEDB NOCREATEROLE;
+
+GRANT USAGE ON SCHEMA public TO githustle_app;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+  ai_proposal_usage,
+  audit_logs,
+  client_profiles,
+  collab_board_elements,
+  collab_board_versions,
+  collab_boards,
+  collab_call_participants,
+  collab_calls,
+  collab_document_versions,
+  collab_documents,
+  collab_spaces,
+  collab_whiteboard_elements,
+  collab_whiteboard_snapshots,
+  collab_whiteboards,
+  content_reports,
+  contract_templates,
+  credit_ledger,
+  dispute_messages,
+  disputes,
+  fee_schedules,
+  file_uploads,
+  freelancer_profiles,
+  freelancer_skills,
+  invoice_items,
+  invoices,
+  job_postings,
+  job_promotions,
+  job_skills,
+  messages,
+  mfa_recovery_codes,
+  milestone_deliverables,
+  milestones,
+  notification_preferences,
+  notifications,
+  payment_gateway_events,
+  payments,
+  platform_fees,
+  portfolio_items,
+  profile_views,
+  projects,
+  proposal_boosts,
+  proposals,
+  refresh_tokens,
+  reminders,
+  reviews,
+  saved_freelancers,
+  saved_jobs,
+  skills,
+  sticky_notes,
+  subscription_invoices,
+  subscription_plans,
+  tax_records,
+  team_members,
+  teams,
+  time_entries,
+  user_subscriptions,
+  user_verifications,
+  users,
+  withdrawals
+TO githustle_app;
+
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO githustle_app;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO githustle_app;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT USAGE ON SEQUENCES TO githustle_app;
+
+REVOKE CREATE ON SCHEMA public FROM githustle_app;
+
+-- ================================================================
 -- TABLE: payment_gateway_events
 -- ================================================================
 -- Webhook idempotency log for Stripe, GCash, Maya, PayPal.
@@ -1668,6 +1778,7 @@ CREATE INDEX idx_pge_payment_id  ON payment_gateway_events(payment_id) WHERE pay
 
 -- ================================================================
 -- END: 000_general_migration.sql
--- 59 tables · 29 enums · 10 explicit triggers + apply_updated_at triggers · 10 views · 1 function · 1 admin role
+-- 59 tables · 29 enums · 10 explicit triggers + apply_updated_at triggers · 10 views · 1 function · 2 roles
+-- Incorporates: 014_refresh_token_family.sql, 015_least_privilege_role.sql
 -- Run seeds separately: server/sql/seeds/000_seed.sql
 -- ================================================================

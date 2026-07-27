@@ -1,233 +1,398 @@
 // src/socket/index.js
-// Purpose: All Socket.io logic in one place.
-//   - Creates the io Server instance attached to the HTTP server
-//   - Authenticates the socket handshake using the same JWT as REST routes
-//   - Manages per-project rooms
-//   - Handles all real-time events: send_message, typing, mark_read
-//   - Optionally connects the Redis adapter for multi-instance pub/sub
+// Purpose: All Socket.io logic in one place — hardened per security spec task 17.1.
+//   - Origin allowlist gate before token verification
+//   - Token verification via Auth_Provider_Interface (attaches tokenExp)
+//   - Zod schema validation per event
+//   - Per-socket token-bucket rate limit (30 events / 10s sliding window)
+//   - 32 KB max payload cap (server option + manual guard)
+//   - join_project membership check
+//   - Token expiry check on every event handler
+//   - @socket.io/redis-adapter for cross-process fan-out
+//   - All console.* replaced with logger.*
+
+'use strict';
+
 const { Server } = require('socket.io');
 const { createAdapter } = require('@socket.io/redis-adapter');
 const Redis = require('ioredis');
-const { verifyAccessToken } = require('../utils/jwt');
+const { z } = require('zod');
+const authProvider = require('../modules/auth/auth-provider');
+const authRepo = require('../modules/auth/auth.repository');
 const env = require('../config/env');
+const logger = require('../config/logger');
 const messagesService = require('../modules/messages/messages.service');
 const projectsRepo = require('../modules/projects/projects.repository');
+const originMatcher = require('../security/originMatcher');
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SOCKET ROOM NAMING CONVENTION
-// Purpose: Consistent string key so all event emissions target the right room.
-// Format: "project:<uuid>"
-// Example: "project:550e8400-e29b-41d4-a716-446655440000"
+// MODULE-LEVEL CONSTANTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Parse CORS_ORIGINS once at startup
+const corsOrigins = env.CORS_ORIGINS
+  ? env.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
+  : [];
+
+// Allow any http://localhost:* when running in development
+const devLocalhost = env.NODE_ENV === 'development';
+
+// Rate-limit constants
+const RATE_LIMIT_TOKENS = 30;
+const RATE_LIMIT_WINDOW_MS = 10_000; // 10 seconds
+
+// Payload cap (bytes)
+const MAX_PAYLOAD_BYTES = 32 * 1024; // 32 KB
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ZOD SCHEMAS — defined once at module top level
+// ─────────────────────────────────────────────────────────────────────────────
+
+const schemas = {
+  join_project: z.object({
+    projectId: z.string().uuid(),
+  }),
+
+  send_message: z.object({
+    projectId: z.string().uuid(),
+    content: z.string().min(1).max(10000),
+    msgType: z.enum(['text', 'file']).optional(),
+    replyToId: z.string().uuid().optional().nullable(),
+    fileUrl: z.string().url().optional().nullable(),
+    fileName: z.string().max(255).optional().nullable(),
+    fileSizeBytes: z.number().int().positive().optional().nullable(),
+    mimeType: z.string().max(100).optional().nullable(),
+  }),
+
+  typing_start: z.object({
+    projectId: z.string().uuid(),
+  }),
+
+  typing_stop: z.object({
+    projectId: z.string().uuid(),
+  }),
+
+  mark_read: z.object({
+    projectId: z.string().uuid(),
+  }),
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
 function projectRoom(projectId) {
-    return `project:${projectId}`;
+  return `project:${projectId}`;
+}
+
+/**
+ * Validate event payload against its Zod schema.
+ * On failure emits 'error' to the socket and returns false.
+ * Returns the parsed (coerced) data on success.
+ *
+ * @param {import('socket.io').Socket} socket
+ * @param {string} eventName
+ * @param {unknown} data
+ * @returns {{ ok: true, data: object } | { ok: false }}
+ */
+function validatePayload(socket, eventName, data) {
+  const schema = schemas[eventName];
+  if (!schema) return { ok: true, data };
+
+  const result = schema.safeParse(data);
+  if (!result.success) {
+    socket.emit('error', {
+      code: 'VALIDATION_ERROR',
+      event: eventName,
+      errors: result.error.flatten(),
+    });
+    return { ok: false };
+  }
+  return { ok: true, data: result.data };
+}
+
+/**
+ * 32 KB manual payload guard.
+ * Returns true (rejected) if oversized; emits error to socket.
+ *
+ * @param {import('socket.io').Socket} socket
+ * @param {unknown} data
+ * @returns {boolean}
+ */
+function isPayloadTooLarge(socket, data) {
+  try {
+    if (JSON.stringify(data).length > MAX_PAYLOAD_BYTES) {
+      socket.emit('error', { code: 'PAYLOAD_TOO_LARGE' });
+      return true;
+    }
+  } catch {
+    // non-serialisable payload is treated as too-large
+    socket.emit('error', { code: 'PAYLOAD_TOO_LARGE' });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Token-bucket rate limiter — synchronous except for the fire-and-forget audit write.
+ * Returns true (rejected / caller must abort) if the socket is being disconnected for rate limit.
+ *
+ * Bucket stored as socket._rateBucket = { tokens: number, lastRefill: number }
+ *
+ * @param {import('socket.io').Socket} socket
+ * @returns {boolean}
+ */
+function checkRateLimit(socket) {
+  const now = Date.now();
+  const bucket = socket._rateBucket;
+
+  // Proportional refill: full refill (30 tokens) over 10 000 ms
+  const elapsed = now - bucket.lastRefill;
+  const refill = (elapsed / RATE_LIMIT_WINDOW_MS) * RATE_LIMIT_TOKENS;
+  bucket.tokens = Math.min(RATE_LIMIT_TOKENS, bucket.tokens + refill);
+  bucket.lastRefill = now;
+
+  if (bucket.tokens < 1) {
+    // Fire-and-forget audit log — don't await in hot path
+    authRepo.insertAuditLog({
+      userId: socket.user?.id || null,
+      eventType: 'socket_rate_limit_exceeded',
+      outcome: 'blocked',
+      ip: socket.handshake.address,
+      userAgent: socket.handshake.headers['user-agent'] || null,
+      metadata: { socketId: socket.id },
+    }).catch((err) => logger.warn({ err: err.message }, 'Failed to write rate-limit audit log'));
+
+    socket.disconnect('rate_limit_exceeded');
+    return true; // rejected
+  }
+
+  bucket.tokens -= 1;
+  return false; // allowed
+}
+
+/**
+ * Token-expiry check — must be called at the START of every event handler,
+ * before the rate-limit check.
+ * Returns true (rejected) if token has expired.
+ *
+ * @param {import('socket.io').Socket} socket
+ * @returns {boolean}
+ */
+function isTokenExpired(socket) {
+  if (socket.tokenExp && socket.tokenExp * 1000 <= Date.now()) {
+    socket.emit('error', { code: 'TOKEN_EXPIRED' });
+    socket.disconnect(true);
+    return true;
+  }
+  return false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// INITIALIZE: called once from server.js with the http.Server instance
+// MODULE-LEVEL IO REFERENCE
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Module-level reference to the io instance.
-// Set by initSocket() so that getIo() can be called from any module
-// (e.g., notifications.service) without circular imports.
 let _io = null;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function initSocket(httpServer) {
-    // ── Create the Socket.io server ──────────────────────────────────────────
-    // cors: must match CLIENT_URL so the browser WebSocket upgrade isn't blocked.
-    // transports: prefer websocket, fall back to polling (useful behind some proxies).
-    const io = new Server(httpServer, {
-        cors: {
-            origin: env.CLIENT_URL,
-            credentials: true,
-        },
-        transports: ['websocket', 'polling'],
-    });
+  // ── Create Socket.IO server with 32 KB max buffer ──────────────────────────
+  const io = new Server(httpServer, {
+    cors: {
+      origin: env.CLIENT_URL,
+      credentials: true,
+    },
+    transports: ['websocket', 'polling'],
+    maxHttpBufferSize: MAX_PAYLOAD_BYTES,
+  });
 
-    // ── Redis adapter (optional — skip if REDIS_URL is not set) ──────────────
-    // Why Redis adapter?
-    //   Without it, socket.io rooms are in-process only. If you run 2+ Node
-    //   instances behind a load balancer, a user on instance A can't receive
-    //   messages from a user on instance B. The Redis adapter uses Redis pub/sub
-    //   to broadcast events across all instances.
-    //
-    // ioredis usage notes:
-    //   - `new Redis(url)` auto-connects on construction (no .connect() call needed).
-    //   - `.duplicate()` creates a second connection with the same config.
-    //   - Error handlers MUST be attached immediately to prevent Node from crashing
-    //     on unhandled 'error' events when Redis is unreachable.
-    if (env.REDIS_URL) {
-        try {
-            const pubClient = new Redis(env.REDIS_URL, { lazyConnect: true });
-            const subClient = pubClient.duplicate();
+  // ── Redis adapter (optional) ───────────────────────────────────────────────
+  if (env.REDIS_URL) {
+    try {
+      const pubClient = new Redis(env.REDIS_URL, { lazyConnect: true });
+      const subClient = pubClient.duplicate();
 
-            // Prevent unhandled error crashes when Redis is down
-            pubClient.on('error', (err) => console.warn('Redis pub error:', err.message));
-            subClient.on('error', (err) => console.warn('Redis sub error:', err.message));
+      pubClient.on('error', (err) => logger.warn({ err: err.message }, 'Redis pub error'));
+      subClient.on('error', (err) => logger.warn({ err: err.message }, 'Redis sub error'));
 
-            // lazyConnect: true means we must call .connect() manually,
-            // which lets us properly await and catch connection failures.
-            await Promise.all([pubClient.connect(), subClient.connect()]);
-            io.adapter(createAdapter(pubClient, subClient));
-            console.log('✅ Socket.io Redis adapter connected');
-        } catch (err) {
-            // Don't crash the server if Redis is unavailable in development
-            console.warn('⚠️  Socket.io Redis adapter failed, running without it:', err.message);
-        }
+      await Promise.all([pubClient.connect(), subClient.connect()]);
+      io.adapter(createAdapter(pubClient, subClient));
+      logger.info('Socket.io Redis adapter connected');
+    } catch (err) {
+      logger.warn({ err: err.message }, 'Socket.io Redis adapter unavailable, running single-process');
+    }
+  }
+
+  // ── Authentication + origin middleware ─────────────────────────────────────
+  io.use(async (socket, next) => {
+    // 1. Origin allowlist gate — checked BEFORE token verification
+    const origin = socket.handshake.headers.origin;
+    if (!originMatcher.matches(origin, corsOrigins, { devLocalhost })) {
+      const err = new Error('Authentication error');
+      err.data = { code: 403 };
+      return next(err);
     }
 
-    // ── Authentication middleware ─────────────────────────────────────────────
-    // Purpose: Verify the JWT on every socket connection BEFORE the handshake
-    // completes. If the token is missing or expired, the connection is refused
-    // with an authentication error — the socket never opens.
-    //
-    // Token delivery: the React client sends the access token via:
-    //   socket = io(SERVER_URL, { auth: { token: accessToken } })
-    // We read it from socket.handshake.auth.token.
-    //
-    // Why not cookies? Socket.io's websocket transport doesn't send httpOnly
-    // cookies on all browsers. The auth object is the standard approach.
-    io.use((socket, next) => {
-        const token = socket.handshake.auth?.token;
-        if (!token) {
-            return next(new Error('Authentication error: No token provided'));
+    // 2. Token verification
+    const token = socket.handshake.auth?.token;
+    if (!token) {
+      return next(new Error('Authentication error: No token provided'));
+    }
+
+    try {
+      const result = await authProvider.active.verifyAccessToken(token);
+      socket.user = { id: result.userId, role: result.role };
+      // Attach expiry so per-handler checks can gate on it
+      socket.tokenExp = result.exp;
+      next();
+    } catch (err) {
+      next(new Error('Authentication error: Invalid or expired token'));
+    }
+  });
+
+  // ── Connection handler ─────────────────────────────────────────────────────
+  io.on('connection', (socket) => {
+    const userId = socket.user.id;
+    logger.info({ userId, socketId: socket.id }, 'Socket connected');
+
+    // Initialise per-socket token bucket
+    socket._rateBucket = { tokens: RATE_LIMIT_TOKENS, lastRefill: Date.now() };
+
+    // Join personal room for direct notifications
+    socket.join(`user:${userId}`);
+
+    // ── join_project ─────────────────────────────────────────────────────────
+    socket.on('join_project', async (data) => {
+      // 1. Token expiry
+      if (isTokenExpired(socket)) return;
+      // 2. Rate limit
+      if (checkRateLimit(socket)) return;
+      // 3. Payload size
+      if (isPayloadTooLarge(socket, data)) return;
+      // 4. Schema validation
+      const validated = validatePayload(socket, 'join_project', data);
+      if (!validated.ok) return;
+
+      const { projectId } = validated.data;
+
+      try {
+        const project = await projectsRepo.findProjectById(projectId);
+        if (!project) throw new Error('Project not found');
+        if (project.client_id !== userId && project.freelancer_id !== userId) {
+          socket.emit('error', { code: 'NOT_A_MEMBER', message: 'Not a project member' });
+          return;
         }
-        try {
-            // verifyAccessToken throws if expired or invalid
-            const payload = verifyAccessToken(token);
-            // Attach user info to the socket object — available in all event handlers
-            socket.user = { id: payload.sub, role: payload.role };
-            next();
-        } catch (err) {
-            next(new Error('Authentication error: Invalid or expired token'));
-        }
+
+        socket.join(projectRoom(projectId));
+        socket.currentProjectId = projectId;
+        socket.emit('joined_project', { projectId });
+      } catch (err) {
+        socket.emit('error', { message: err.message });
+      }
     });
 
-    // ── Connection handler ────────────────────────────────────────────────────
-    io.on('connection', (socket) => {
-        const userId = socket.user.id;
-        console.log(`Socket connected: userId=${userId} socketId=${socket.id}`);
+    // ── send_message ─────────────────────────────────────────────────────────
+    socket.on('send_message', async (data) => {
+      // 1. Token expiry
+      if (isTokenExpired(socket)) return;
+      // 2. Rate limit
+      if (checkRateLimit(socket)) return;
+      // 3. Payload size
+      if (isPayloadTooLarge(socket, data)) return;
+      // 4. Schema validation
+      const validated = validatePayload(socket, 'send_message', data);
+      if (!validated.ok) return;
 
-        // Join a personal room keyed by user ID.
-        // This lets notifications.service push directly to one user
-        // without broadcasting or iterating socket IDs.
-        socket.join(`user:${userId}`);
+      const safeData = validated.data;
 
-        // ── join_project ────────────────────────────────────────────────────────
-        // Event: client emits when navigating to a project chat page.
-        // Server validates membership, then adds the socket to the room.
-        // Only project members (client + freelancer) can join — no outsiders.
-        //
-        // Why validate again here and not just trust the JWT?
-        //   The JWT proves identity, not project membership. A logged-in user
-        //   could manually emit join_project with someone else's projectId.
-        socket.on('join_project', async ({ projectId }) => {
-            try {
-                if (!projectId) throw new Error('projectId required');
-                const project = await projectsRepo.findProjectById(projectId);
-                if (!project) throw new Error('Project not found');
-                if (project.client_id !== userId && project.freelancer_id !== userId) {
-                    throw new Error('Not a project member');
-                }
-
-                socket.join(projectRoom(projectId));
-                // Track which rooms this socket is in (useful for cleanup on disconnect)
-                socket.currentProjectId = projectId;
-
-                socket.emit('joined_project', { projectId });
-            } catch (err) {
-                socket.emit('error', { message: err.message });
-            }
-        });
-
-        // ── send_message ────────────────────────────────────────────────────────
-        // Event: freelancer or client sends a message.
-        // Server saves to DB, then broadcasts to the full project room
-        // (including the sender — so all tabs/devices of the sender see it too).
-        //
-        // Why save to DB before emitting?
-        //   If we emit first and the DB write fails, one side sees a message
-        //   that doesn't exist. DB-first guarantees consistency.
-        socket.on('send_message', async (data) => {
-            try {
-                // data: { projectId, content, msgType?, replyToId?, fileUrl?, fileName?,
-                //          fileSizeBytes?, mimeType? }
-                const message = await messagesService.sendMessage(userId, data.projectId, data);
-
-                // Emit to ALL sockets in the room (including the sender's other devices)
-                io.to(projectRoom(data.projectId)).emit('new_message', message);
-            } catch (err) {
-                // Send error only back to this socket (not the whole room)
-                socket.emit('message_error', { message: err.message });
-            }
-        });
-
-        // ── typing_start / typing_stop ──────────────────────────────────────────
-        // Purpose: Real-time "User is typing..." indicator.
-        // We relay the event to the room but exclude the sender's own socket
-        // (you don't want to see "You are typing" in your own UI).
-        //
-        // socket.to(room) = broadcast to room EXCLUDING this socket
-        // io.to(room)     = broadcast to room INCLUDING this socket
-        socket.on('typing_start', ({ projectId }) => {
-            socket.to(projectRoom(projectId)).emit('user_typing', {
-                userId,
-                projectId,
-            });
-        });
-
-        socket.on('typing_stop', ({ projectId }) => {
-            socket.to(projectRoom(projectId)).emit('user_stopped_typing', {
-                userId,
-                projectId,
-            });
-        });
-
-        // ── mark_read ───────────────────────────────────────────────────────────
-        // Purpose: When a user opens the chat, mark all unread messages as read.
-        // Emits 'messages_read' to the OTHER party so they can update their
-        // "Delivered / Seen" status icons.
-        socket.on('mark_read', async ({ projectId }) => {
-            try {
-                const markedIds = await messagesService.markRead(userId, projectId);
-                if (markedIds.length > 0) {
-                    // Tell the other party that this user has read their messages
-                    socket.to(projectRoom(projectId)).emit('messages_read', {
-                        userId,
-                        projectId,
-                        messageIds: markedIds, // frontend uses these to flip read indicators
-                    });
-                }
-            } catch (err) {
-                socket.emit('error', { message: err.message });
-            }
-        });
-
-        // ── disconnect ──────────────────────────────────────────────────────────
-        // Purpose: Clean up typing indicator if the user disconnects mid-type.
-        // Socket.io auto-removes the socket from all rooms on disconnect —
-        // we just need to notify the other party to clear the typing indicator.
-        socket.on('disconnect', () => {
-            if (socket.currentProjectId) {
-                socket.to(projectRoom(socket.currentProjectId)).emit('user_stopped_typing', {
-                    userId,
-                    projectId: socket.currentProjectId,
-                });
-            }
-            console.log(`Socket disconnected: userId=${userId} socketId=${socket.id}`);
-        });
+      try {
+        const message = await messagesService.sendMessage(userId, safeData.projectId, safeData);
+        io.to(projectRoom(safeData.projectId)).emit('new_message', message);
+      } catch (err) {
+        socket.emit('message_error', { message: err.message });
+      }
     });
 
-    _io = io; // store for getIo()
-    return io; // return so server.js can use it if needed
+    // ── typing_start ─────────────────────────────────────────────────────────
+    socket.on('typing_start', (data) => {
+      // 1. Token expiry
+      if (isTokenExpired(socket)) return;
+      // 2. Rate limit
+      if (checkRateLimit(socket)) return;
+      // 3. Payload size
+      if (isPayloadTooLarge(socket, data)) return;
+      // 4. Schema validation
+      const validated = validatePayload(socket, 'typing_start', data);
+      if (!validated.ok) return;
+
+      const { projectId } = validated.data;
+      socket.to(projectRoom(projectId)).emit('user_typing', { userId, projectId });
+    });
+
+    // ── typing_stop ──────────────────────────────────────────────────────────
+    socket.on('typing_stop', (data) => {
+      // 1. Token expiry
+      if (isTokenExpired(socket)) return;
+      // 2. Rate limit
+      if (checkRateLimit(socket)) return;
+      // 3. Payload size
+      if (isPayloadTooLarge(socket, data)) return;
+      // 4. Schema validation
+      const validated = validatePayload(socket, 'typing_stop', data);
+      if (!validated.ok) return;
+
+      const { projectId } = validated.data;
+      socket.to(projectRoom(projectId)).emit('user_stopped_typing', { userId, projectId });
+    });
+
+    // ── mark_read ─────────────────────────────────────────────────────────────
+    socket.on('mark_read', async (data) => {
+      // 1. Token expiry
+      if (isTokenExpired(socket)) return;
+      // 2. Rate limit
+      if (checkRateLimit(socket)) return;
+      // 3. Payload size
+      if (isPayloadTooLarge(socket, data)) return;
+      // 4. Schema validation
+      const validated = validatePayload(socket, 'mark_read', data);
+      if (!validated.ok) return;
+
+      const { projectId } = validated.data;
+
+      try {
+        const markedIds = await messagesService.markRead(userId, projectId);
+        if (markedIds.length > 0) {
+          socket.to(projectRoom(projectId)).emit('messages_read', {
+            userId,
+            projectId,
+            messageIds: markedIds,
+          });
+        }
+      } catch (err) {
+        socket.emit('error', { message: err.message });
+      }
+    });
+
+    // ── disconnect ────────────────────────────────────────────────────────────
+    socket.on('disconnect', () => {
+      if (socket.currentProjectId) {
+        socket.to(projectRoom(socket.currentProjectId)).emit('user_stopped_typing', {
+          userId,
+          projectId: socket.currentProjectId,
+        });
+      }
+      logger.info({ userId, socketId: socket.id }, 'Socket disconnected');
+    });
+  });
+
+  _io = io;
+  return io;
 }
 
-// Purpose: Returns the active io instance.
-// Called from notifications.service.js to emit real-time pushes.
-// Returns null if initSocket() hasn't run yet (e.g., test environments).
 function getIo() {
-    return _io;
+  return _io;
 }
 
 module.exports = { initSocket, getIo };

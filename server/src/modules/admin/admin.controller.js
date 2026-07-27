@@ -1,5 +1,5 @@
 // src/modules/admin/admin.controller.js
-const asyncHandler = require('../middleware/asyncHandler');
+const asyncHandler = require('../../middleware/asyncHandler');
 const service = require('./admin.service');
 
 // Users

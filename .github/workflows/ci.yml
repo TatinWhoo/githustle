@@ -49,6 +49,43 @@ jobs:
         run: npm ci
         working-directory: server
 
+      - name: Verify lockfile integrity
+        run: npm ci --ignore-scripts
+        working-directory: server
+
+      - name: Security audit
+        run: |
+          cd server
+          if [ ! -f package-lock.json ]; then
+            echo "AUDIT_STEP_MISCONFIGURED: package-lock.json not found" >&2
+            exit 1
+          fi
+          set +e
+          npm audit --audit-level=high --json > /tmp/audit_output.json 2>/tmp/audit_stderr.txt
+          AUDIT_EXIT=$?
+          set -e
+          # exit code 2 from npm audit = misconfiguration/network; exit 1 = advisories found
+          if [ "$AUDIT_EXIT" -eq 2 ]; then
+            echo "AUDIT_STEP_MISCONFIGURED: npm audit exited with code 2" >&2
+            cat /tmp/audit_stderr.txt >&2
+            exit 1
+          fi
+          cat /tmp/audit_output.json
+          if [ "$AUDIT_EXIT" -ne 0 ]; then
+            echo "High or critical advisories found — build failed" >&2
+            exit 1
+          fi
+
+      - name: Check deps
+        run: bash server/scripts/check-deps.sh
+
+      - name: Lint security docs
+        run: node server/scripts/lint-security-docs.js
+        continue-on-error: true
+
+      - name: Build Docker image (smoke)
+        run: docker build --target production -t githustle-api:ci-test ./server
+
       - name: Check app loads
         env:
           NODE_ENV: test

@@ -1,9 +1,9 @@
 // src/modules/admin/admin.routes.js
 const express = require('express');
-const authenticate = require('../middleware/authenticate');
-const requireRole = require('../middleware/requireRole');
-const validate = require('../middleware/validate');
-const auditLog = require('../middleware/auditLog');
+const authenticate = require('../../middleware/authenticate');
+const requireRole = require('../../middleware/requireRole');
+const validate = require('../../middleware/validate');
+const auditLog = require('../../middleware/auditLog');
 const controller = require('./admin.controller');
 const {
     userIdParamSchema, listUsersQuerySchema, changeRoleSchema, banUserSchema,

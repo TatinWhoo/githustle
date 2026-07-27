@@ -1,6 +1,6 @@
-const AppError = require('../utils/AppError');
+const AppError = require('../../utils/AppError');
 const repo = require('./disputes.repository');
-const logger = require('../config/logger');
+const logger = require('../../config/logger');
 
 function toDisputeDTO(d) {
     return {

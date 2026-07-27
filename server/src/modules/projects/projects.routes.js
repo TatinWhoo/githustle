@@ -3,7 +3,7 @@ const express = require('express');
 const authenticate = require('../../middleware/authenticate');
 const requireRole = require('../../middleware/requireRole');
 const validate = require('../../middleware/validate');
-const { uploadSingleImage } = require('../../middleware/upload');
+const { uploadImage } = require('../../middleware/upload');
 const controller = require('./projects.controller');
 const {
     projectIdParamSchema,
@@ -132,16 +132,14 @@ router.patch(
 // ── Deliverable routes ───────────────────────────────────────────────────────
 
 // Upload a file deliverable (freelancer only)
-// uploadSingleImage('file', 50) — field name 'file', max 50 MB
-// Note: we reuse uploadSingleImage but deliverables aren't restricted to images.
-// For a production app you'd create a separate uploadSingleFile middleware
-// that accepts PDF, ZIP, etc. For now, images only.
+// Restricted to image/jpeg, image/png, image/webp per spec Requirement 9.1
+// For non-image deliverables, a separate uploadSingleFile middleware would be needed.
 router.post(
     '/:projectId/milestones/:milestoneId/deliverables',
     authenticate,
     requireRole('freelancer'),
     validate(milestoneIdParamSchema, 'params'),
-    uploadSingleImage('file', 50),   // Multer parses the multipart file into req.file
+    ...uploadImage('file', 'portfolio'),  // magic-byte verified, UUID-renamed, written to disk
     validate(uploadDeliverableSchema),
     controller.uploadDeliverable
 );

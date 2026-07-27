@@ -1,6 +1,6 @@
 // src/modules/projects/projects.service.js
 const AppError = require('../../utils/AppError');
-const { saveBuffer, deleteFile } = require('../../utils/fileStorage');
+const { deleteFile } = require('../../utils/fileStorage');
 const repo = require('./projects.repository');
 
 // We need proposal + job data to build the project — import jobs repo
@@ -361,8 +361,8 @@ async function updateMilestoneStatus(userId, userRole, projectId, milestoneId, r
 // Purpose: Upload a file deliverable for a milestone.
 // Only the freelancer on the project can submit deliverables.
 // Milestone must be in_progress, submitted, or in_review (work is active).
-// File goes through the same saveBuffer() pipeline used in M2 for avatars.
-async function uploadDeliverable(freelancerId, projectId, milestoneId, file, note) {
+// File verification + disk write are done by upload middleware; `uploadedFile` carries the result.
+async function uploadDeliverable(freelancerId, projectId, milestoneId, file, uploadedFile, note) {
     const project = await repo.findProjectById(projectId);
     if (!project) throw new AppError('Project not found.', 404);
     assertProjectFreelancer(project, freelancerId);
@@ -381,16 +381,12 @@ async function uploadDeliverable(freelancerId, projectId, milestoneId, file, not
         );
     }
 
-    if (!file) throw new AppError('No file attached. Include a file under the "file" field.', 400);
-
-    // Save to disk (same utility as M2 avatars/portfolio)
-    const saved = await saveBuffer(file.buffer, 'deliverables', file.mimetype);
-
+    // uploadedFile is set by the upload middleware (magic-byte verified, UUID-renamed, written)
     const deliverable = await repo.createDeliverable(milestoneId, freelancerId, {
-        fileName: saved.filename,
-        originalName: file.originalname,
-        fileUrl: saved.url,
-        fileSizeBytes: file.size,
+        fileName: uploadedFile.filename,
+        originalName: null, // never store user-supplied filename (Requirement 9.5)
+        fileUrl: uploadedFile.url,
+        fileSizeBytes: file.size || file.buffer?.length || 0,
         mimeType: file.mimetype,
         note,
     });

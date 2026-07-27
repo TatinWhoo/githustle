@@ -10,9 +10,17 @@
 //        logger.info({ userId, action }, 'User banned');
 const pino = require('pino');
 const env = require('./env');
+const { REDACT_PATHS } = require('../security/redact');
 
 const logger = pino({
     level: env.LOG_LEVEL,
+    formatters: {
+        level: (label) => ({ level: label }),
+    },
+    redact: {
+        paths: REDACT_PATHS,
+        censor: '[REDACTED]',
+    },
     // In production, raw JSON for log aggregators. In dev, pretty-print.
     ...(env.NODE_ENV === 'development' && {
         transport: {
