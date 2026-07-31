@@ -30,7 +30,7 @@ const emailJobSchema = z.object({
 });
 
 // ── Queue ─────────────────────────────────────────────────────────────────────
-const emailQueue = new Queue('emails', { connection });
+const emailQueue = connection ? new Queue('emails', { connection }) : null;
 
 // ── Producer ──────────────────────────────────────────────────────────────────
 /**
@@ -40,6 +40,10 @@ const emailQueue = new Queue('emails', { connection });
  * @param {{ to: string|string[], subject: string, html: string, requestId?: string }} payload
  */
 async function queueEmail(payload) {
+  if (!emailQueue) {
+    logger.warn({ requestId: payload?.requestId }, 'Email queue disabled (no Redis) — skipping email');
+    return;
+  }
   const parsed = emailJobSchema.safeParse(payload);
   if (!parsed.success) {
     const errors = parsed.error.flatten().fieldErrors;

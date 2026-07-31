@@ -6,10 +6,19 @@
 //   - Password extracted from validated REDIS_URL (Config_Loader already gates)
 //   - No plaintext fallback at runtime; if REDIS_URL lacks rediss:// in prod,
 //     Config_Loader will have already exited before this module is required
+//
+// Dev note: if REDIS_URL is empty, `connection` is exported as null.
+// Queue/worker files check for null and skip initialisation.
 'use strict';
 
 const env = require('../../config/env');
 const logger = require('../../config/logger');
+
+if (!env.REDIS_URL) {
+  logger.warn('[queues/connection] REDIS_URL not set — queues and workers disabled');
+  module.exports = { connection: null };
+  return;
+}
 
 let redisUrl;
 try {

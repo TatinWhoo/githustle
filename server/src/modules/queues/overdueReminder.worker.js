@@ -22,6 +22,10 @@ const { queueEmail } = require('./email.queue');
 const notifService = require('../notifications/notifications.service');
 
 function startOverdueWorker() {
+  if (!connection) {
+    logger.warn('Overdue reminder worker disabled (no Redis)');
+    return null;
+  }
   const worker = new Worker(
     'overdue-reminders',
     async (job) => {

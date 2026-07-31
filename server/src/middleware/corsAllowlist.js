@@ -29,13 +29,15 @@ function corsAllowlist(req, res, next) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Request-Id');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Request-Id, X-Correlation-ID');
+    res.setHeader('Access-Control-Expose-Headers', 'X-Correlation-ID, X-Request-Id');
     res.setHeader('Access-Control-Max-Age', '86400');
     return res.status(204).end();
   }
 
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Expose-Headers', 'X-Correlation-ID, X-Request-Id');
   return next();
 }
 

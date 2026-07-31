@@ -24,6 +24,10 @@ const env = require('../../config/env');
 const logger = require('../../config/logger');
 
 function startEmailWorker() {
+  if (!connection) {
+    logger.warn('Email worker disabled (no Redis)');
+    return null;
+  }
   // RESEND_API_KEY read from Config_Loader at worker startup — never from job payload (Req 15.6)
   const transporter = nodemailer.createTransport({
     host: 'smtp.resend.com',

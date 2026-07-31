@@ -19,6 +19,7 @@ const notificationsRoutes = require('./modules/notifications/notifications.route
 const aiRoutes = require('./modules/ai/ai.routes');
 const adminRoutes = require('./modules/admin/admin.routes');
 const disputesRoutes = require('./modules/disputes/disputes.routes');
+const logsRoutes = require('./modules/logs/logs.routes');
 
 const app = express();
 
@@ -54,6 +55,7 @@ mountAll(app, [
   { path: '/api/v1/ai',             router: aiRoutes,            moduleName: 'ai' },
   { path: '/api/v1/admin',          router: adminRoutes,         moduleName: 'admin' },
   { path: '/api/v1/disputes',       router: disputesRoutes,      moduleName: 'disputes' },
+  { path: '/api/v1/logs',           router: logsRoutes,          moduleName: 'logs' },
 ]);
 
 // 404 + global error handler (always last)

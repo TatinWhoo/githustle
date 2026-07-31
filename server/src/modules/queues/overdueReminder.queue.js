@@ -23,7 +23,7 @@ const overdueJobSchema = z.object({
 });
 
 // ── Queue ─────────────────────────────────────────────────────────────────────
-const overdueQueue = new Queue('overdue-reminders', { connection });
+const overdueQueue = connection ? new Queue('overdue-reminders', { connection }) : null;
 
 // ── Producer ──────────────────────────────────────────────────────────────────
 /**
@@ -33,6 +33,10 @@ const overdueQueue = new Queue('overdue-reminders', { connection });
  * @param {{ requestId?: string }} [opts]
  */
 async function scheduleOverdueCheck({ requestId } = {}) {
+  if (!overdueQueue) {
+    logger.warn({ requestId }, 'Overdue queue disabled (no Redis) — skipping schedule');
+    return;
+  }
   // Remove any existing repeating jobs first to prevent duplicates on restart.
   const existingJobs = await overdueQueue.getRepeatableJobs();
   for (const job of existingJobs) {

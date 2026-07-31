@@ -22,8 +22,13 @@ export function RegisterPage() {
       await registerUser({ ...data, role });
       navigate('/verify-email', { replace: true });
     } catch (e) {
-      const err = e as AxiosError<ApiError>;
-      setFormError(err.response?.data?.message ?? 'Registration failed. Try again.');
+      const err = e as AxiosError<ApiError & { errors?: Record<string, string[]> }>;
+      const fieldErrors = err.response?.data?.errors;
+      const firstFieldErr =
+        fieldErrors && Object.values(fieldErrors).flat()[0];
+      setFormError(
+        firstFieldErr ?? err.response?.data?.message ?? 'Registration failed. Try again.',
+      );
     }
   });
 
@@ -41,7 +46,26 @@ export function RegisterPage() {
           <input id="email" type="email" autoComplete="email" className="w-full text-sm px-3 py-2 border border-border rounded-md focus:outline-none focus:border-gh-teal focus:ring-1 focus:ring-gh-teal" {...register('email', { required: 'Email is required' })} />
           {errors.email && <p className="text-xs text-gh-red">{errors.email.message}</p>}
         </div>
-        <PasswordField id="password" label="Password" autoComplete="new-password" error={errors.password?.message} {...register('password', { required: 'Password is required', minLength: { value: 8, message: 'At least 8 characters' } })} />
+        <PasswordField
+          id="password"
+          label="Password"
+          autoComplete="new-password"
+          error={errors.password?.message}
+          {...register('password', {
+            required: 'Password is required',
+            validate: (value) => {
+              if (value.length < 8) return 'At least 8 characters';
+              if (!/[A-Z]/.test(value)) return 'Must include an uppercase letter';
+              if (!/[a-z]/.test(value)) return 'Must include a lowercase letter';
+              if (!/[0-9]/.test(value)) return 'Must include a number';
+              if (!/[^A-Za-z0-9]/.test(value)) return 'Must include a special character';
+              return true;
+            },
+          })}
+        />
+        <p className="text-[11px] text-text-muted -mt-2">
+          8+ chars with uppercase, lowercase, number, and special character.
+        </p>
         {formError && <p role="alert" className="text-xs text-gh-red">{formError}</p>}
         <button type="submit" disabled={isSubmitting} className="w-full bg-gh-teal hover:bg-gh-teal-hover text-white text-sm font-semibold py-2.5 rounded-md transition active:scale-[0.98] disabled:opacity-50">
           {isSubmitting ? 'Creating…' : 'Create Account'}
