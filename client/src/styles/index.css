@@ -1,58 +1,11 @@
 @import "tailwindcss";
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
-
-@theme {
-  --font-sans: "Inter", "Geist", system-ui, sans-serif;
-  --font-serif: "Playfair Display", serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
-
-  --color-gh-ink: #0F1923;
-  --color-gh-ink2: #1E2D3D;
-  --color-gh-teal: #0D9488;
-  --color-gh-teal-hover: #0F766E;
-  --color-gh-teal-light: #CCFBF1;
-  --color-gh-amber: #D97706;
-  --color-gh-amber-light: #FEF3C7;
-  --color-gh-red: #DC2626;
-  --color-gh-red-light: #FEE2E2;
-  --color-gh-green: #16A34A;
-  --color-gh-green-light: #DCFCE7;
-  --color-gh-blue: #2563EB;
-  --color-gh-blue-light: #DBEAFE;
-
-  --color-surface-0: #F7FAFC;
-  --color-surface-1: #FFFFFF;
-  --color-border: #E2E8F0;
-
-  --color-text-primary: #0F1923;
-  --color-text-secondary: #4A5568;
-  --color-text-muted: #8898AA;
-
-  --shadow-card: 0 1px 3px rgba(15, 25, 35, 0.08), 0 1px 2px rgba(15, 25, 35, 0.04);
-  --shadow-elevated: 0 4px 16px rgba(15, 25, 35, 0.12), 0 2px 4px rgba(15, 25, 35, 0.06);
-  --shadow-diffuse: 0 20px 40px -15px rgba(0, 0, 0, 0.05);
-
-  --color-status-pending: #D97706;
-  --color-status-active: #0D9488;
-  --color-status-approved: #16A34A;
-  --color-status-overdue: #DC2626;
-  --color-status-disputed: #7C3AED;
-
-  --color-pro-gold: #B45309;
-  --color-pro-gold-light: #FEF3C7;
-
-  --color-bottom-nav: #1E2D3D;
-  --height-bottom-nav: 64px;
-  --height-topnav: 56px;
-
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-}
+@import "./tokens.css";
+@import "./motion.css";
 
 body {
   font-family: var(--font-sans);
-  background-color: #F7FAFC;
-  color: #0F1923;
+  background-color: var(--color-surface-0);
+  color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -65,10 +18,10 @@ body {
 .border-subtle { border-color: rgba(24, 24, 27, 0.08); }
 .glass-panel { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(24, 24, 27, 0.06); }
 .active-glow { box-shadow: 0 4px 20px rgba(15, 118, 110, 0.04); }
-.transition-all-custom { transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+@keyframes shimmer { to { transform: translateX(100%); } }
