@@ -2,15 +2,18 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { useUiStore } from '@/stores/ui.store';
 
 export function ProfileMenu() {
   const { user, logout } = useAuth();
+  const sim = useUiStore((s) => s.roleSimulator);
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const initials = (user?.name ?? '?').split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
   return (
-    <div className="relative">
+    <div className="relative flex items-center gap-2">
+      {sim.isSimulating && <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-gh-amber text-white">Demo</span>}
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label="Open profile menu"
@@ -24,12 +27,13 @@ export function ProfileMenu() {
             initial={{ opacity: 0, y: 10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
-            className="absolute right-0 mt-2 w-48 bg-white border border-border rounded-lg shadow-elevated py-1 text-xs text-text-primary z-50 font-sans"
+            transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+            style={{ transformOrigin: 'top right' }}
+            className="absolute right-0 top-full mt-2 w-48 bg-white border border-border rounded-lg shadow-elevated py-1 text-xs text-text-primary z-50 font-sans"
           >
             <div className="p-3 border-b border-border">
               <p className="font-semibold">{user?.name}</p>
-              <p className="text-[10px] text-text-muted mt-0.5 capitalize">{user?.role}</p>
+              <p className="text-[10px] text-text-muted mt-0.5 capitalize">{sim.isSimulating ? sim.simulatedRole : user?.role}</p>
             </div>
             <div className="p-1">
               <button onClick={() => { navigate('/profile'); setOpen(false); }} className="w-full text-left px-3 py-1.5 hover:bg-surface-0 rounded transition font-bold text-gh-teal">View Profile</button>
