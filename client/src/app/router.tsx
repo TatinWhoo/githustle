@@ -1,13 +1,47 @@
+import { Suspense, lazy } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './ProtectedRoute';
 import { RoleRoute } from './RoleRoute';
 import { AppShell } from '@/features/layout/AppShell';
 import { PlaceholderPage } from '@/features/layout/PlaceholderPage';
+import { RouteFallback } from './RouteFallback';
 import { LoginPage } from '@/features/auth/pages/LoginPage';
 import { RegisterPage } from '@/features/auth/pages/RegisterPage';
 import { VerifyEmailPage } from '@/features/auth/pages/VerifyEmailPage';
 import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage';
+
+// Each of these placeholder lazy stubs will be replaced with real pages in feature waves.
+const HubPagePlaceholder = () => <PlaceholderPage title="Public Hub" />;
+const ConversationsPagePlaceholder = () => <PlaceholderPage title="Conversations" />;
+const PersonalPagePlaceholder = () => <PlaceholderPage title="Personal Space" />;
+const LiveHubPagePlaceholder = () => <PlaceholderPage title="Live Workspaces" />;
+const LiveWorkspacePagePlaceholder = () => <PlaceholderPage title="Workspace" />;
+const SavedPagePlaceholder = () => <PlaceholderPage title="Saved Posts" />;
+const AdminPagePlaceholder = () => <PlaceholderPage title="Admin Desk" />;
+const ProfilePagePlaceholder = () => <PlaceholderPage title="Profile" />;
+const PremiumPagePlaceholder = () => <PlaceholderPage title="Premium" />;
+const HelpPagePlaceholder = () => <PlaceholderPage title="Help" />;
+const SettingsPagePlaceholder = () => <PlaceholderPage title="Settings" />;
+
+// Lazy wrappers so the future real modules can be swapped in later waves by replacing the import().
+const HubPage = lazy(async () => ({ default: HubPagePlaceholder }));
+const ConversationsPage = lazy(async () => ({ default: ConversationsPagePlaceholder }));
+const PersonalPage = lazy(async () => ({ default: PersonalPagePlaceholder }));
+const LiveHubPage = lazy(async () => ({ default: LiveHubPagePlaceholder }));
+const LiveWorkspacePage = lazy(async () => ({ default: LiveWorkspacePagePlaceholder }));
+const SavedPage = lazy(async () => ({ default: SavedPagePlaceholder }));
+const AdminPage = lazy(async () => ({ default: AdminPagePlaceholder }));
+const ProfilePage = lazy(async () => ({ default: ProfilePagePlaceholder }));
+const PremiumPage = lazy(async () => ({ default: PremiumPagePlaceholder }));
+const HelpPage = lazy(async () => ({ default: HelpPagePlaceholder }));
+const SettingsPage = lazy(async () => ({ default: SettingsPagePlaceholder }));
+
+const lazyEl = (Node: React.ComponentType) => (
+  <Suspense fallback={<RouteFallback />}>
+    <Node />
+  </Suspense>
+);
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -22,18 +56,19 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           { path: '/', element: <Navigate to="/hub" replace /> },
-          { path: '/hub', element: <PlaceholderPage title="Public Hub" /> },
-          { path: '/conversations', element: <PlaceholderPage title="Conversations" /> },
-          { path: '/personal', element: <PlaceholderPage title="Personal Space" /> },
-          { path: '/live', element: <PlaceholderPage title="Live Workspaces" /> },
-          { path: '/saved', element: <PlaceholderPage title="Saved Posts" /> },
-          { path: '/profile', element: <PlaceholderPage title="Profile" /> },
-          { path: '/premium', element: <PlaceholderPage title="Premium" /> },
-          { path: '/help', element: <PlaceholderPage title="Help" /> },
-          { path: '/settings', element: <PlaceholderPage title="Settings" /> },
+          { path: '/hub', element: lazyEl(HubPage) },
+          { path: '/conversations', element: lazyEl(ConversationsPage) },
+          { path: '/personal', element: lazyEl(PersonalPage) },
+          { path: '/live', element: lazyEl(LiveHubPage) },
+          { path: '/live/:projectId', element: lazyEl(LiveWorkspacePage) },
+          { path: '/saved', element: lazyEl(SavedPage) },
+          { path: '/profile', element: lazyEl(ProfilePage) },
+          { path: '/premium', element: lazyEl(PremiumPage) },
+          { path: '/help', element: lazyEl(HelpPage) },
+          { path: '/settings', element: lazyEl(SettingsPage) },
           {
             element: <RoleRoute role="admin" />,
-            children: [{ path: '/admin', element: <PlaceholderPage title="Admin Desk" /> }],
+            children: [{ path: '/admin', element: lazyEl(AdminPage) }],
           },
         ],
       },
