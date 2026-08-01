@@ -3,7 +3,7 @@ import { useAuth } from '@/features/auth/hooks/useAuth';
 import { TopNav } from './TopNav';
 import { Sidebar } from './Sidebar';
 import { MobileDrawer } from './MobileDrawer';
-import { ToastHost } from './ToastHost';
+import { ToastHost } from '@/components/primitives/ToastHost';
 
 export function AppShell() {
   const { role } = useAuth();
