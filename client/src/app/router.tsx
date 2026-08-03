@@ -16,7 +16,6 @@ import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage';
 
 
 
-const SavedPagePlaceholder = () => <PlaceholderPage title="Saved Posts" />;
 const AdminPagePlaceholder = () => <PlaceholderPage title="Admin Desk" />;
 const ProfilePagePlaceholder = () => <PlaceholderPage title="Profile" />;
 const PremiumPagePlaceholder = () => <PlaceholderPage title="Premium" />;
@@ -29,7 +28,7 @@ const ConversationsPage = lazy(() => import('@/features/conversations/pages/Conv
 const PersonalPage = lazy(() => import('@/features/personal/pages/PersonalPage').then((m) => ({ default: m.PersonalPage })));
 const LiveHubPage = lazy(() => import('@/features/live/pages/LiveHubPage').then((m) => ({ default: m.LiveHubPage })));
 const LiveWorkspacePage = lazy(() => import('@/features/live/pages/LiveWorkspacePage').then((m) => ({ default: m.LiveWorkspacePage })));
-const SavedPage = lazy(async () => ({ default: SavedPagePlaceholder }));
+const SavedPage = lazy(() => import('@/features/saved/pages/SavedPage').then((m) => ({ default: m.SavedPage })));
 const AdminPage = lazy(async () => ({ default: AdminPagePlaceholder }));
 const ProfilePage = lazy(async () => ({ default: ProfilePagePlaceholder }));
 const PremiumPage = lazy(async () => ({ default: PremiumPagePlaceholder }));
