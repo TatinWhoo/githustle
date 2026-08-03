@@ -12,11 +12,10 @@ import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage';
 
 // Each of these placeholder lazy stubs will be replaced with real pages in feature waves.
-const HubPagePlaceholder = () => <PlaceholderPage title="Public Hub" />;
-const ConversationsPagePlaceholder = () => <PlaceholderPage title="Conversations" />;
-const PersonalPagePlaceholder = () => <PlaceholderPage title="Personal Space" />;
-const LiveHubPagePlaceholder = () => <PlaceholderPage title="Live Workspaces" />;
-const LiveWorkspacePagePlaceholder = () => <PlaceholderPage title="Workspace" />;
+
+
+
+
 const SavedPagePlaceholder = () => <PlaceholderPage title="Saved Posts" />;
 const AdminPagePlaceholder = () => <PlaceholderPage title="Admin Desk" />;
 const ProfilePagePlaceholder = () => <PlaceholderPage title="Profile" />;
@@ -25,11 +24,11 @@ const HelpPagePlaceholder = () => <PlaceholderPage title="Help" />;
 const SettingsPagePlaceholder = () => <PlaceholderPage title="Settings" />;
 
 // Lazy wrappers so the future real modules can be swapped in later waves by replacing the import().
-const HubPage = lazy(async () => ({ default: HubPagePlaceholder }));
-const ConversationsPage = lazy(async () => ({ default: ConversationsPagePlaceholder }));
-const PersonalPage = lazy(async () => ({ default: PersonalPagePlaceholder }));
-const LiveHubPage = lazy(async () => ({ default: LiveHubPagePlaceholder }));
-const LiveWorkspacePage = lazy(async () => ({ default: LiveWorkspacePagePlaceholder }));
+const HubPage = lazy(() => import('@/features/hub/pages/HubPage').then((m) => ({ default: m.HubPage })));
+const ConversationsPage = lazy(() => import('@/features/conversations/pages/ConversationsPage').then((m) => ({ default: m.ConversationsPage })));
+const PersonalPage = lazy(() => import('@/features/personal/pages/PersonalPage').then((m) => ({ default: m.PersonalPage })));
+const LiveHubPage = lazy(() => import('@/features/live/pages/LiveHubPage').then((m) => ({ default: m.LiveHubPage })));
+const LiveWorkspacePage = lazy(() => import('@/features/live/pages/LiveWorkspacePage').then((m) => ({ default: m.LiveWorkspacePage })));
 const SavedPage = lazy(async () => ({ default: SavedPagePlaceholder }));
 const AdminPage = lazy(async () => ({ default: AdminPagePlaceholder }));
 const ProfilePage = lazy(async () => ({ default: ProfilePagePlaceholder }));
