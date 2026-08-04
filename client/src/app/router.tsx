@@ -3,7 +3,6 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './ProtectedRoute';
 import { RoleRoute } from './RoleRoute';
 import { AppShell } from '@/features/layout/AppShell';
-import { PlaceholderPage } from '@/features/layout/PlaceholderPage';
 import { RouteFallback } from './RouteFallback';
 import { LoginPage } from '@/features/auth/pages/LoginPage';
 import { RegisterPage } from '@/features/auth/pages/RegisterPage';
@@ -17,8 +16,6 @@ import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage';
 
 
 
-const SettingsPagePlaceholder = () => <PlaceholderPage title="Settings" />;
-
 // Lazy wrappers so the future real modules can be swapped in later waves by replacing the import().
 const HubPage = lazy(() => import('@/features/hub/pages/HubPage').then((m) => ({ default: m.HubPage })));
 const ConversationsPage = lazy(() => import('@/features/conversations/pages/ConversationsPage').then((m) => ({ default: m.ConversationsPage })));
@@ -30,7 +27,7 @@ const AdminPage = lazy(() => import('@/features/admin/pages/AdminPage').then((m)
 const ProfilePage = lazy(() => import('@/features/profile/pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 const PremiumPage = lazy(() => import('@/features/premium/pages/PremiumPage').then((m) => ({ default: m.PremiumPage })));
 const HelpPage = lazy(() => import('@/features/help/pages/HelpPage').then((m) => ({ default: m.HelpPage })));
-const SettingsPage = lazy(async () => ({ default: SettingsPagePlaceholder }));
+const SettingsPage = lazy(() => import('@/features/settings/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 
 const lazyEl = (Node: React.ComponentType) => (
   <Suspense fallback={<RouteFallback />}>
