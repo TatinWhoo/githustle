@@ -1638,6 +1638,32 @@ SELECT user_id,
 FROM credit_ledger GROUP BY user_id;
 
 -- ================================================================
+-- TABLE: payment_gateway_events
+-- ================================================================
+-- Webhook idempotency log for Stripe, GCash, Maya, PayPal.
+-- event_id UNIQUE prevents double-processing of duplicate deliveries.
+-- processed = FALSE partial index is the queue the webhook worker polls.
+-- Must be created BEFORE githustle_app GRANT block below (which references it).
+-- ================================================================
+
+CREATE TABLE payment_gateway_events (
+  id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  gateway      VARCHAR(50)  NOT NULL,
+  event_id     VARCHAR(255) NOT NULL UNIQUE,
+  event_type   VARCHAR(100) NOT NULL,
+  payload      JSONB        NOT NULL,
+  payment_id   UUID         REFERENCES payments(id),
+  processed    BOOLEAN      NOT NULL DEFAULT FALSE,
+  processed_at TIMESTAMPTZ,
+  error        TEXT,
+  created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_pge_event_id    ON payment_gateway_events(event_id);
+CREATE INDEX idx_pge_unprocessed ON payment_gateway_events(processed) WHERE processed = FALSE;
+CREATE INDEX idx_pge_payment_id  ON payment_gateway_events(payment_id) WHERE payment_id IS NOT NULL;
+
+-- ================================================================
 -- ADMIN ROLE: githustle_admin (BYPASSRLS)
 -- ================================================================
 -- Service role for admin backend routes.
@@ -1752,33 +1778,8 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 REVOKE CREATE ON SCHEMA public FROM githustle_app;
 
 -- ================================================================
--- TABLE: payment_gateway_events
--- ================================================================
--- Webhook idempotency log for Stripe, GCash, Maya, PayPal.
--- event_id UNIQUE prevents double-processing of duplicate deliveries.
--- processed = FALSE partial index is the queue the webhook worker polls.
--- ================================================================
-
-CREATE TABLE payment_gateway_events (
-  id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-  gateway      VARCHAR(50)  NOT NULL,
-  event_id     VARCHAR(255) NOT NULL UNIQUE,
-  event_type   VARCHAR(100) NOT NULL,
-  payload      JSONB        NOT NULL,
-  payment_id   UUID         REFERENCES payments(id),
-  processed    BOOLEAN      NOT NULL DEFAULT FALSE,
-  processed_at TIMESTAMPTZ,
-  error        TEXT,
-  created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_pge_event_id    ON payment_gateway_events(event_id);
-CREATE INDEX idx_pge_unprocessed ON payment_gateway_events(processed) WHERE processed = FALSE;
-CREATE INDEX idx_pge_payment_id  ON payment_gateway_events(payment_id) WHERE payment_id IS NOT NULL;
-
--- ================================================================
 -- END: 000_general_migration.sql
 -- 59 tables · 29 enums · 10 explicit triggers + apply_updated_at triggers · 10 views · 1 function · 2 roles
--- Incorporates: 014_refresh_token_family.sql, 015_least_privilege_role.sql
+-- Incorporates: 011_a → 015 (all incremental migrations)
 -- Run seeds separately: server/sql/seeds/000_seed.sql
 -- ================================================================

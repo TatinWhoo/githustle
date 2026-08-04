@@ -21,6 +21,22 @@ if (!Number.isInteger(TRUSTED_PROXY_DEPTH) || TRUSTED_PROXY_DEPTH < 1 || TRUSTED
   TRUSTED_PROXY_DEPTH = 1;
 }
 
+// ── DATABASE_URL selector (DB_TARGET switch) ──────────────────────────────────
+// Reads DB_TARGET ('local' | 'cloud') and picks between DATABASE_URL_LOCAL /
+// DATABASE_URL_CLOUD. If DATABASE_URL is set directly, that takes precedence.
+// Missing values fall through to Zod validation below with a clear error.
+const DB_TARGET = (process.env.DB_TARGET || '').toLowerCase();
+if (!process.env.DATABASE_URL) {
+  if (DB_TARGET === 'local' && process.env.DATABASE_URL_LOCAL) {
+    process.env.DATABASE_URL = process.env.DATABASE_URL_LOCAL;
+  } else if (DB_TARGET === 'cloud' && process.env.DATABASE_URL_CLOUD) {
+    process.env.DATABASE_URL = process.env.DATABASE_URL_CLOUD;
+  }
+}
+if (DB_TARGET === 'local' || DB_TARGET === 'cloud') {
+  console.log(`[env] DB_TARGET=${DB_TARGET}`);
+}
+
 // ── Schema ────────────────────────────────────────────────────────────────────
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
