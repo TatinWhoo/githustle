@@ -17,7 +17,6 @@ import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage';
 
 
 
-const HelpPagePlaceholder = () => <PlaceholderPage title="Help" />;
 const SettingsPagePlaceholder = () => <PlaceholderPage title="Settings" />;
 
 // Lazy wrappers so the future real modules can be swapped in later waves by replacing the import().
@@ -30,7 +29,7 @@ const SavedPage = lazy(() => import('@/features/saved/pages/SavedPage').then((m)
 const AdminPage = lazy(() => import('@/features/admin/pages/AdminPage').then((m) => ({ default: m.AdminPage })));
 const ProfilePage = lazy(() => import('@/features/profile/pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 const PremiumPage = lazy(() => import('@/features/premium/pages/PremiumPage').then((m) => ({ default: m.PremiumPage })));
-const HelpPage = lazy(async () => ({ default: HelpPagePlaceholder }));
+const HelpPage = lazy(() => import('@/features/help/pages/HelpPage').then((m) => ({ default: m.HelpPage })));
 const SettingsPage = lazy(async () => ({ default: SettingsPagePlaceholder }));
 
 const lazyEl = (Node: React.ComponentType) => (
