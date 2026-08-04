@@ -45,6 +45,13 @@ jobs:
           cache: 'npm'
           cache-dependency-path: server/package-lock.json
 
+      - name: Client — motion discipline grep gate
+        run: |
+          if grep -rnE "transition-all|transition:\s*all|ease-in\b|scale\(0\)|filter:\s*none|will-change:" client/src; then
+            echo "Motion discipline violation: forbidden pattern present in client/src"
+            exit 1
+          fi
+
       - name: Install dependencies
         run: npm ci
         working-directory: server
@@ -95,6 +102,22 @@ jobs:
           CLIENT_URL: http://localhost:3000
         run: node -e "require('./src/app'); console.log('App loaded OK');"
         working-directory: server
+
+      - name: Client — install
+        run: npm ci
+        working-directory: client
+
+      - name: Client — lint
+        run: npm run lint
+        working-directory: client
+
+      - name: Client — test
+        run: npm test
+        working-directory: client
+
+      - name: Client — build
+        run: npm run build
+        working-directory: client
 
   build-and-push:
     name: Docker Build & Push

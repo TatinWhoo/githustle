@@ -33,7 +33,7 @@ export function StatusPill({ status, size = 'sm' }: StatusPillProps) {
   const pad = size === 'md' ? 'px-2.5 py-1 text-sm' : 'px-2 py-0.5 text-xs';
   const italic = status === 'revision_requested' ? 'italic' : '';
   return (
-    <span data-testid={`status-${status}`} className={`inline-flex items-center gap-1.5 rounded-full font-medium ${m.bg} ${m.text} ${pad} ${italic} transition-colors duration-[160ms] ease-in-out`}>
+    <span data-testid={`status-${status}`} className={`inline-flex items-center gap-1.5 rounded-full font-medium ${m.bg} ${m.text} ${pad} ${italic} transition-colors duration-[160ms] ease-[cubic-bezier(0.16,1,0.3,1)]`}>
       <span className={`w-1.5 h-1.5 rounded-full ${m.text.replace('text-', 'bg-')}`} aria-hidden />
       {m.label}
     </span>
