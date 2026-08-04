@@ -10,13 +10,7 @@ import { VerifyEmailPage } from '@/features/auth/pages/VerifyEmailPage';
 import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage';
 
-// Each of these placeholder lazy stubs will be replaced with real pages in feature waves.
-
-
-
-
-
-// Lazy wrappers so the future real modules can be swapped in later waves by replacing the import().
+// Lazy wrappers for route-level code splitting. Each import() resolves to a real page module.
 const HubPage = lazy(() => import('@/features/hub/pages/HubPage').then((m) => ({ default: m.HubPage })));
 const ConversationsPage = lazy(() => import('@/features/conversations/pages/ConversationsPage').then((m) => ({ default: m.ConversationsPage })));
 const PersonalPage = lazy(() => import('@/features/personal/pages/PersonalPage').then((m) => ({ default: m.PersonalPage })));
